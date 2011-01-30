@@ -56,7 +56,12 @@ def loadParams( map, fileName):
         # Specifying support difference constraint
         else:
             sdc = float(param[0])
-        
+
+def sortData( seqDB, misMap):
+    for seq in seqDB:
+        for trans in seq:
+            trans.sort(key=lambda x:misMap[x])
+            
 ### Sequence manipulation
 
 # Returns TRUE if seqA contains seqB, FALSE otherwise
@@ -77,6 +82,11 @@ if __name__ == '__main__':
     #print ( "Seq Contains: ", seqContains( [[6], [3,7], [9], [4,5,8], [3,8]], [[3], [4,5], [8]] ) )
     #print ( "Seq Contains: ", seqContains( [[3,8]]  , [[3], [8]] ) )
     #print ( "Seq Contains: ", seqContains( [[3],[8]], [[3, 8]] ) )
-    #print( seqDB )
-    #print( misMap ) 
+    print( seqDB )
+    print( misMap ) 
     #print( sdc )
+    
+    sortData( seqDB, misMap )
+    
+    print( seqDB )
+    print( misMap ) 
