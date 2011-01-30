@@ -2,6 +2,7 @@
 Created on Jan 26, 2011
 
 @author: garyturovsky
+@author: alanperezrathke
 '''
 
 if __name__ == '__main__':
