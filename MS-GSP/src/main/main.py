@@ -12,7 +12,7 @@ import re
 # The sequence database
 seqDB = []
 
-# The parameters
+# A map of form item id -> minimum item support
 misMap = {}
 
 # The path to the input data
@@ -41,26 +41,42 @@ def loadData( db, fileName ):
                 seqLst.append( transLst )
         db.append( seqLst )
 
-def loadParam( map, fileName):
+def loadParams( map, fileName):
     FILE = open( fileName, "r" )
     for line in FILE:
         line = line.rstrip('\n')
         param = re.findall(r"\d+\.*\d*",line)
         
-        #Make sure we're dealing with the two types of parameters that we can handle
+        # Make sure we're dealing with the two types of parameters that we can handle
         assert( ( len( param ) == 2 and line.startswith("MIS") ) or ( len( param ) == 1 and line.startswith( "SDC" ) ) )
         
-        #Specifying minimum support for an item
+        # Specifying minimum support for an item
         if(line.startswith("MIS")):
             map[int(param[0])] = float(param[1])
-        #Specifying support difference constraint
+        # Specifying support difference constraint
         else:
             sdc = float(param[0])
         
+### Sequence manipulation
+
+# Returns TRUE if seqA contains seqB, FALSE otherwise
+def seqContains( seqSup, seqSub ):
+    if ( len( seqSub ) == 0 ):
+        return True
+    if ( len( seqSup ) == 0 ):
+        return False
+    for i in range( 0, len(seqSup) ):
+        if ( set( seqSub[0] ).issubset( set(seqSup[ i ] ) ) ):
+            return seqContains( seqSup[i+1:], seqSub[1:] )
+    return False
+
 if __name__ == '__main__':
     loadData( seqDB, dataPath )
-    loadParam(misMap,paramPath)
+    loadParams(misMap,paramPath)
     
-    print( seqDB )
-    print( misMap ) 
-    print( sdc )
+    #print ( "Seq Contains: ", seqContains( [[6], [3,7], [9], [4,5,8], [3,8]], [[3], [4,5], [8]] ) )
+    #print ( "Seq Contains: ", seqContains( [[3,8]]  , [[3], [8]] ) )
+    #print ( "Seq Contains: ", seqContains( [[3],[8]], [[3, 8]] ) )
+    #print( seqDB )
+    #print( misMap ) 
+    #print( sdc )
