@@ -7,6 +7,13 @@ Created on Jan 26, 2011
 
 import re
 
+#### Structure for representing a sequence object
+
+class Sequence:
+    def __init__(self, seq=[]):
+        self.seq = seq
+        self.count = 0.0
+
 #### Global variables
 
 # The sequence database
@@ -62,31 +69,23 @@ def sortData( seqDB, misMap):
         for trans in seq:
             trans.sort(key=lambda x:misMap[x])
             
-### Sequence manipulation
+#### Sequence manipulation
 
 # Returns TRUE if seqA contains seqB, FALSE otherwise
 def seqContains( seqSup, seqSub ):
-    if ( len( seqSub ) == 0 ):
+    if ( len( seqSub) == 0 ):
         return True
-    if ( len( seqSup ) == 0 ):
-        return False
-    for i in range( 0, len(seqSup) ):
-        if ( set( seqSub[0] ).issubset( set(seqSup[ i ] ) ) ):
-            return seqContains( seqSup[i+1:], seqSub[1:] )
+    idxSub = 0
+    for idxSup in range( 0, len( seqSup ) ):
+        if ( set( seqSub[ idxSub ] ).issubset( set(seqSup[ idxSup ] ) ) ):
+            idxSub += 1
+            if ( idxSub == len( seqSub ) ):
+                return True
     return False
 
 if __name__ == '__main__':
     loadData( seqDB, dataPath )
     loadParams(misMap,paramPath)
-    
-    #print ( "Seq Contains: ", seqContains( [[6], [3,7], [9], [4,5,8], [3,8]], [[3], [4,5], [8]] ) )
-    #print ( "Seq Contains: ", seqContains( [[3,8]]  , [[3], [8]] ) )
-    #print ( "Seq Contains: ", seqContains( [[3],[8]], [[3, 8]] ) )
-    print( seqDB )
-    print( misMap ) 
-    #print( sdc )
-    
     sortData( seqDB, misMap )
-    
     print( seqDB )
-    print( misMap ) 
+ 
