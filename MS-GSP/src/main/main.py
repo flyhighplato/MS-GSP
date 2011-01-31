@@ -7,13 +7,6 @@ Created on Jan 26, 2011
 
 import re
 
-#### Structure for representing a sequence object
-
-class Sequence:
-    def __init__(self, seq=[]):
-        self.seq = seq
-        self.count = 0.0
-
 #### Global variables
 
 # The sequence database
@@ -31,8 +24,9 @@ paramPath = "../../../Data/para.txt"
 # Support difference constraint
 sdc = 0.0
 
-#### I/O
+#### Initialization utilities
 
+# Loads data file into a database of sequences, where each sequence is a series list of transactions
 def loadData( db, fileName ):
     FILE = open( fileName, "r" )
     for line in FILE:
@@ -48,6 +42,7 @@ def loadData( db, fileName ):
                 seqLst.append( transLst )
         db.append( seqLst )
 
+# Loads parameters for minimum item support and support difference constraint from data file
 def loadParams( map, fileName):
     FILE = open( fileName, "r" )
     for line in FILE:
@@ -64,14 +59,15 @@ def loadParams( map, fileName):
         else:
             sdc = float(param[0])
 
+# Sorts transactions in parameter sequence database by user supplied MIS values
 def sortData( seqDB, misMap):
     for seq in seqDB:
         for trans in seq:
             trans.sort(key=lambda x:misMap[x])
-            
-#### Sequence manipulation
 
-# Returns TRUE if seqA contains seqB, FALSE otherwise
+#### Sequence utilities
+
+# Returns True if seqA contains seqB, False otherwise
 def seqContains( seqSup, seqSub ):
     if ( len( seqSub) == 0 ):
         return True
@@ -83,9 +79,20 @@ def seqContains( seqSup, seqSub ):
                 return True
     return False
 
+# Structure for representing a sequence object
+class Sequence:
+    # Constructor
+    def __init__(self, seq=[]):
+        self.seq = seq
+        self.count = 0.0
+    # Returns True if this sequence contains parameter sequence, False otherwise
+    def contains(self, seq):
+        return seqContains( self.seq, seq )
+
+#### Application entry point
+
 if __name__ == '__main__':
     loadData( seqDB, dataPath )
     loadParams(misMap,paramPath)
     sortData( seqDB, misMap )
     print( seqDB )
- 
