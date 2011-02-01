@@ -7,6 +7,7 @@ Created on Jan 26, 2011
 
 import re
 import sys
+import logging
 
 #### Global variables
 
@@ -130,18 +131,39 @@ def initPass( seqDB, misMap, globalMinMis, L, F ):
     for key in T.keys():
         if(T[key]/len(seqDB)>=misMap[key]):
             F.append([Sequence(key,T[key])])
+    
+    logging.getLogger("InitPass").info("L = " + str(L))
+    logging.getLogger("InitPass").info("F = " + str(F))
 
 # Main body of MS-GSP
 def MSGSPMain():
     loadData( seqDB, dataPath )
+    logging.getLogger("MSGSPMain").info("Loaded seqDB:" + str(seqDB))
+    
     globalMinMis = loadParams(misMap,paramPath)
+    logging.getLogger("MSGSPMain").info("globalMinMis:" + str(globalMinMis))
+    
     sortData( seqDB, misMap )
+    logging.getLogger("MSGSPMain").info("Sorted seqDB:" + str(seqDB))
     
     L=set()
     F=[]
     initPass( seqDB, misMap, globalMinMis, L, F ) 
     
+    
 #### Application entry point
 
 if __name__ == '__main__':
+    #Set up logging
+    logging.basicConfig(level=logging.DEBUG,
+                    format='%(asctime)s %(levelname)s %(message)s',
+                    filename='msgsp.log',
+                    filemode='w')
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
+
+    
     MSGSPMain()
