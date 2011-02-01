@@ -62,6 +62,8 @@ def sortData( seqDB, misMap):
         for trans in seq:
             trans.sort(key=lambda x:misMap[x])
             
+
+            
 ### Sequence manipulation
 
 # Returns TRUE if seqA contains seqB, FALSE otherwise
