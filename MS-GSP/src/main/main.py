@@ -9,27 +9,19 @@ import re
 import sys
 import logging
 
-#### Global variables
-
-# The sequence database
-seqDB = []
-
-# A map of form item id -> minimum item support
-misMap = {}
-
-# The path to the input data
-dataPath = "../../../Data/data.txt"
-
-# The path to the MIS parameter data
-paramPath = "../../../Data/para.txt"
-
-# Support difference constraint
-sdc = 0.0
-
-# Global minimum MIS value
-globalMinMis = 0.0;
-
 #### Initialization utilities
+
+# Set up logging
+def initLogger():  
+    logging.basicConfig( level=logging.DEBUG,
+                         format='%(asctime)s %(levelname)s %(message)s',
+                         filename='msgsp.log',
+                         filemode='w' )
+    console = logging.StreamHandler()
+    console.setLevel(logging.INFO)
+    formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
+    console.setFormatter(formatter)
+    logging.getLogger('').addHandler(console)
 
 # Loads data file into a database of sequences, where each sequence is a series list of transactions
 def loadData( db, fileName ):
@@ -50,7 +42,7 @@ def loadData( db, fileName ):
 # Loads parameters for minimum item support and support difference constraint from data file
 def loadParams( map, fileName):
     minMis=sys.float_info.max
-    
+    sdc = 0.0
     FILE = open( fileName, "r" )
     for line in FILE:
         line = line.rstrip('\n')
@@ -68,7 +60,7 @@ def loadParams( map, fileName):
         else:
             sdc = float(param[0])
 
-    return minMis
+    return minMis, sdc
 
 # Sorts transactions in parameter sequence database by user supplied MIS values
 def sortData( seqDB, misMap):
@@ -102,15 +94,15 @@ class Sequence:
         return str(self.seq) + ":" + str(self.count)
     
     # Returns True if this sequence contains parameter sequence, False otherwise
-    def contains(self, seq):
-        return seqContains( self.seq, seq )
+    def contains(self, seqObj):
+        return seqContains( self.seq, seqObj.seq )
 
 #### GSP Algorithm
 
 # Initial pass for MS-GSP
 def initPass( seqDB, misMap, globalMinMis, L, F ):
     T = {}
-    #Count unique items in support
+    # Count unique items in support
     for seq in seqDB:
         S = set()
         for trans in seq:
@@ -122,12 +114,12 @@ def initPass( seqDB, misMap, globalMinMis, L, F ):
             else:
                 T[item]+=1
                     
-    #Make possible 1-sequences
+    # Make possible 1-sequences
     for key in T.keys():
         if(T[key]/len(seqDB)>=globalMinMis):
             L.add(key)
     
-    #Make frequent 1-sequences
+    # Make frequent 1-sequences
     for key in T.keys():
         if(T[key]/len(seqDB)>=misMap[key]):
             F.append([Sequence(key,T[key])])
@@ -136,34 +128,34 @@ def initPass( seqDB, misMap, globalMinMis, L, F ):
     logging.getLogger("InitPass").info("F = " + str(F))
 
 # Main body of MS-GSP
-def MSGSPMain():
+def MSGSPMain():       
+    seqDB = []                           # The sequence database
+    misMap = {}                          # A map of form item id -> minimum item support
+    dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
+    paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
+
+    # Initialize logging
+    initLogger()
+    
+    # Load sequence data from file
     loadData( seqDB, dataPath )
-    logging.getLogger("MSGSPMain").info("Loaded seqDB:" + str(seqDB))
+    logging.getLogger("MSGSPMain").info("Loaded seqDB: " + str(seqDB))
     
-    globalMinMis = loadParams(misMap,paramPath)
-    logging.getLogger("MSGSPMain").info("globalMinMis:" + str(globalMinMis))
+    # Initialize MIS values, global minimum MIS, and support difference constraint threshold @TODO: support SDC!
+    globalMinMis, sdc = loadParams(misMap,paramPath)
+    logging.getLogger("MSGSPMain").info("globalMinMis: " + str(globalMinMis))
+    logging.getLogger("MSGSPMain").info("sdc: " + str(sdc))
     
+    # Sort data according to MIS values
     sortData( seqDB, misMap )
-    logging.getLogger("MSGSPMain").info("Sorted seqDB:" + str(seqDB))
+    logging.getLogger("MSGSPMain").info("Sorted seqDB: " + str(seqDB))
     
+    # Generate all frequent 1-sequences
     L=set()
     F=[]
     initPass( seqDB, misMap, globalMinMis, L, F ) 
     
-    
 #### Application entry point
 
 if __name__ == '__main__':
-    #Set up logging
-    logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s %(message)s',
-                    filename='msgsp.log',
-                    filemode='w')
-    console = logging.StreamHandler()
-    console.setLevel(logging.INFO)
-    formatter = logging.Formatter('%(name)s %(levelname)s: %(message)s')
-    console.setFormatter(formatter)
-    logging.getLogger('').addHandler(console)
-
-    
     MSGSPMain()
