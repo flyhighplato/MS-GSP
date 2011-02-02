@@ -5,9 +5,9 @@ Created on Jan 26, 2011
 @author: alanperezrathke
 '''
 
+import logging
 import re
 import sys
-import logging
 
 #### Initialization utilities
 
@@ -41,26 +41,20 @@ def loadData( db, fileName ):
 
 # Loads parameters for minimum item support and support difference constraint from data file
 def loadParams( map, fileName):
-    minMis=sys.float_info.max
-    sdc = 0.0
+    sdc = sys.float_info.max
     FILE = open( fileName, "r" )
     for line in FILE:
         line = line.rstrip('\n')
         param = re.findall(r"\d+\.*\d*",line)
-        
         # Make sure we're dealing with the two types of parameters that we can handle
         assert( ( len( param ) == 2 and line.startswith("MIS") ) or ( len( param ) == 1 and line.startswith( "SDC" ) ) )
-        
         # Specifying minimum support for an item
         if(line.startswith("MIS")):
-            map[int(param[0])] = float(param[1])
-            if(minMis>float(param[1])):
-                minMis=float(param[1])
+            map[ int(param[0]) ] = float(param[1]) # mapping item id -> MIS
         # Specifying support difference constraint
         else:
             sdc = float(param[0])
-
-    return minMis, sdc
+    return sdc
 
 # Sorts transactions in parameter sequence database by user supplied MIS values
 def sortData( seqDB, misMap):
@@ -85,45 +79,78 @@ def seqContains( seqSup, seqSub ):
 # Structure for representing a sequence object
 class Sequence:
     # Constructor
-    def __init__(self, seq=[], count=0):
+    def __init__(self, seq=[], support=-1.0):
         self.seq = seq
-        self.count = count
+        self.support = support
     
     # String representation
     def __repr__(self):
-        return str(self.seq) + ":" + str(self.count)
-    
-    # Returns True if this sequence contains parameter sequence, False otherwise
-    def contains(self, seqObj):
-        return seqContains( self.seq, seqObj.seq )
+        return str(self.seq) + ":" + str(self.support)
+ 
+    # Computes and caches support for this sequence
+    def cacheSupport(self, seqDB):
+        support = 0.0
+        for seq in seqDB:
+            if ( seqContains( seq, self.seq ) ):
+                support += 1.0
+        support /= float(len(seqDB))
+        
+    # Returns support from [0.0 to 1.0] of this sequence - will assert if support is invalid (not been cached)
+    def getSupport(self):
+        assert(( self.support >= 0.0 ) and ( self.support <= 1.0))
+        return self.support
+           
 
 #### GSP Algorithm
 
 # Initial pass for MS-GSP
-def initPass( seqDB, misMap, globalMinMis, L, F ):
-    T = {}
-    # Count unique items in support
+def initPass( seqDB, misMap, L, F ):
+    # Objectives:
+    # 1. Find item 'I' with lowest MIS that has support greater than or equal to MIS(I)
+    # 2. Output L : set of items that have support greater than MIS(I)
+    # 3. Output F : set of 1-sequences such that support <{J}> is greater than or equal to MIS(J), F is a subset of L
+    
+    # Count unique items in sequence database
+    itemCountsMap = {}
     for seq in seqDB:
-        S = set()
+        uniqueItemsInSeq = set()
         for trans in seq:
             for item in trans:
-                S.add(item)
-        for item in S:
-            if item not in T:
-                T[item]=1
+                uniqueItemsInSeq.add(item)
+        for item in uniqueItemsInSeq:
+            if item not in itemCountsMap:
+                itemCountsMap[item]  = 1.0
             else:
-                T[item]+=1
+                itemCountsMap[item] += 1.0
                     
     # Make possible 1-sequences
-    for key in T.keys():
-        if(T[key]/len(seqDB)>=globalMinMis):
-            L.add(key)
+    for key in itemCountsMap.keys():
+        support = itemCountsMap[key] / float( len( seqDB ) )
+        assert( ( 0.0 <= support ) and ( 1.0 >= support ) )
+        L.append( Sequence( [key], support ) )
     
-    # Make frequent 1-sequences
-    for key in T.keys():
-        if(T[key]/len(seqDB)>=misMap[key]):
-            F.append([Sequence(key,T[key])])
+    # Sort possible 1-sequences by MIS
+    L.sort( key=lambda x:misMap[ x.seq[0] ] )
     
+    # Determine first item with support >= MIS(item) - this item will have the lowest satisfied MIS
+    toItemId = lambda oneSeq : oneSeq.seq[ 0 ]
+    idxItemWithLowestSatisfiedMIS = len( L )
+    for idx in range( 0, len( L ) ):
+        if ( L[idx].getSupport() >= misMap[ toItemId( L[idx] ) ] ):
+            idxItemWithLowestSatisfiedMIS = idx
+            break
+    
+    # Trim L of all items with support lower than item with lowest satisfied MIS
+    # Note use of [:] to modify list in place rather than allocate a new list
+    minGlobalSatisfiedMis = misMap[ toItemId( L[idxItemWithLowestSatisfiedMIS] ) ]
+    satisfiesMinGlobalSatisfiedMis = lambda seq : (seq.getSupport() >= minGlobalSatisfiedMis)
+    L[:] = [ seq for seq in L if satisfiesMinGlobalSatisfiedMis( seq ) ]
+    
+    # Determine frequent 1-sequences
+    for seq in L:
+        if ( seq.getSupport() >= misMap[ toItemId( seq ) ] ):
+            F.append( seq )
+
     logging.getLogger("InitPass").info("L = " + str(L))
     logging.getLogger("InitPass").info("F = " + str(F))
 
@@ -141,9 +168,8 @@ def MSGSPMain():
     loadData( seqDB, dataPath )
     logging.getLogger("MSGSPMain").info("Loaded seqDB: " + str(seqDB))
     
-    # Initialize MIS values, global minimum MIS, and support difference constraint threshold @TODO: support SDC!
-    globalMinMis, sdc = loadParams(misMap,paramPath)
-    logging.getLogger("MSGSPMain").info("globalMinMis: " + str(globalMinMis))
+    # Initialize MIS values and support difference constraint threshold @TODO: support SDC!
+    sdc = loadParams(misMap,paramPath)
     logging.getLogger("MSGSPMain").info("sdc: " + str(sdc))
     
     # Sort data according to MIS values
@@ -151,9 +177,9 @@ def MSGSPMain():
     logging.getLogger("MSGSPMain").info("Sorted seqDB: " + str(seqDB))
     
     # Generate all frequent 1-sequences
-    L=set()
+    L=[]
     F=[]
-    initPass( seqDB, misMap, globalMinMis, L, F ) 
+    initPass( seqDB, misMap, L, F ) 
     
 #### Application entry point
 
