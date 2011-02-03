@@ -19,7 +19,7 @@ class Context:
         self.seqDB = []                # The sequence database
         self.misMap = {}               # A map of form item id -> minimum item support
         self.supportMap = {}           # A map of form item id -> actual support
-        self.sdc = sys.float_info.max  # The maximum support difference constraint allowed between two sequences          
+        self.sdc = sys.float_info.max  # The maximum support difference constraint allowed between two sequences      
         
 #### Initialization utilities
 
@@ -99,7 +99,16 @@ class Sequence:
     
     # String representation
     def __repr__(self):
-        return str(self.seq) + ":" + str(self.support)
+        strSeq = "<"
+        for trans in self.seq:
+            strSeq += "{"
+            if ( len( trans ) >= 1 ):
+                strSeq += str( trans[0] )
+            for idx in range ( 1, len( trans ) ):
+                strSeq += "," + str( trans[ idx ] )
+            strSeq += "}"
+        strSeq += "> Count: " + str( int(self.getCount()) )
+        return strSeq
     
     # Returns MIS value assumed to be in greater than or equal to 0.0
     def getMis(self):
@@ -131,8 +140,9 @@ class Sequence:
 def appendSeqAndCacheSupport( aList, aRawSeq, anMis, seqDB ):
     aList.append( Sequence( aRawSeq, anMis ) )
     aList[ -1 ].cacheSupport( seqDB )
-    
-def extractAllSeqsWhichSatisfyTheirMIS( F, C ):
+
+# Extracts all sequences from C which have a support greater than or equal to their MIS and stores them in F   
+def extractAllSeqsWhichSatisfyTheirMis( F, C ):
     F[:] = [ seq for seq in C if ( seq.getSupport() >= seq.getMis() ) ]
 
 #### GSP Algorithm
@@ -182,7 +192,7 @@ def initPass( L, F, ctx ):
     L[:] = [ seq for seq in L if (seq.getSupport() >= minGlobalSatisfiedMis) ]
     
     # Determine frequent 1-sequences
-    extractAllSeqsWhichSatisfyTheirMIS( F, L )
+    extractAllSeqsWhichSatisfyTheirMis( F, L )
     
     logging.getLogger("InitPass").info("L = " + str(L))
     logging.getLogger("InitPass").info("F = " + str(F))
@@ -210,7 +220,18 @@ def level2CandidateGen( C, L, ctx ):
                     assert ( hId != lId ) # assert these items are unique!
                     appendSeqAndCacheSupport( C, [ [ lId, hId ] ], seqL.getMis(), ctx.seqDB )
                     appendSeqAndCacheSupport( C, [ [ lId ], [ hId ] ], seqL.getMis(), ctx.seqDB )
-                    
+
+# Determines candidate k-sequences where k is not 2
+def MSCandidateGenSPM( C, Fprev, ctx ):
+    return
+
+def printFreqSeqs( FHist ):
+    for idxK in range( 0, len( FHist ) ):
+        print ( "The number of length ", (idxK+1), " sequential patterns is ", len( FHist[idxK] ) )
+        for seq in FHist[ idxK ]:
+            print( seq )
+        print()
+  
 # Main body of MS-GSP
 def MSGSPMain():       
     ctx = Context()                      # Structure for storing "global" parameters
@@ -245,8 +266,24 @@ def MSGSPMain():
     
     # Obtain all frequent 2-sequences
     FHist.append([])
-    extractAllSeqsWhichSatisfyTheirMIS( FHist[-1], CHist[-1] )
-    logging.getLogger("MSGSPMain").info("Frequent 2-sequences: " + str(FHist[1])) 
+    extractAllSeqsWhichSatisfyTheirMis( FHist[-1], CHist[-1] )
+    logging.getLogger("MSGSPMain").info("Frequent 2-sequences: " + str(FHist[1]))
+    
+    # The max length of frequent k-sequences to obtain
+    maxK = 3 # @TODO: Read from arguments/load from file
+ 
+    # Generate remaining k-sequences   
+    for idxK in range ( 2, maxK ):
+        assert( len( CHist) == idxK )
+        assert( len( FHist) == idxK )
+        CHist.append([])
+        # Generate candidate k-sequences
+        MSCandidateGenSPM( CHist[-1], FHist[-1], ctx )
+        FHist.append([])
+        extractAllSeqsWhichSatisfyTheirMis( FHist[-1], CHist[-1] )
+        
+    # Output frequent sequences
+    printFreqSeqs( FHist )
     
 #### Application entry point
 
