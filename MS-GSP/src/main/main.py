@@ -6,9 +6,21 @@ Created on Jan 26, 2011
 '''
 
 import logging
+import math
 import re
 import sys
 
+####
+
+# Structure for easier passing around of "global" parameters
+class Context:
+    # Constructor
+    def __init__(self):
+        self.seqDB = []                # The sequence database
+        self.misMap = {}               # A map of form item id -> minimum item support
+        self.supportMap = {}           # A map of form item id -> actual support
+        self.sdc = sys.float_info.max  # The maximum support difference constraint allowed between two sequences          
+        
 #### Initialization utilities
 
 # Set up logging
@@ -40,7 +52,7 @@ def loadData( db, fileName ):
         db.append( seqLst )
 
 # Loads parameters for minimum item support and support difference constraint from data file
-def loadParams( map, fileName):
+def loadParams( map, fileName ):
     sdc = sys.float_info.max
     FILE = open( fileName, "r" )
     for line in FILE:
@@ -57,7 +69,7 @@ def loadParams( map, fileName):
     return sdc
 
 # Sorts transactions in parameter sequence database by user supplied MIS values
-def sortData( seqDB, misMap):
+def sortData( seqDB, misMap ):
     for seq in seqDB:
         for trans in seq:
             trans.sort(key=lambda x:misMap[x])
@@ -79,40 +91,62 @@ def seqContains( seqSup, seqSub ):
 # Structure for representing a sequence object
 class Sequence:
     # Constructor
-    def __init__(self, seq=[], support=-1.0):
+    def __init__( self, seq=[], mis=-1.0, count=-1.0, support=-1.0 ):
         self.seq = seq
+        self.mis = mis
+        self.count = count
         self.support = support
     
     # String representation
     def __repr__(self):
         return str(self.seq) + ":" + str(self.support)
- 
+    
+    # Returns MIS value assumed to be in greater than or equal to 0.0
+    def getMis(self):
+        assert( self.mis >= 0.0 )
+        return self.mis
+   
     # Computes and caches support for this sequence
+    # Also, of note: the optimal way to avoid reads from the database is to compute the sequence counts for a single record in the database
+    # (i.e . for db for seqs instead of for seqs for db as is the case here
     def cacheSupport(self, seqDB):
-        support = 0.0
+        self.count = 0.0
         for seq in seqDB:
             if ( seqContains( seq, self.seq ) ):
-                support += 1.0
-        support /= float(len(seqDB))
+                self.count += 1.0
+        self.support = self.count / float(len(seqDB))
         
     # Returns support from [0.0 to 1.0] of this sequence - will assert if support is invalid (not been cached)
     def getSupport(self):
-        assert(( self.support >= 0.0 ) and ( self.support <= 1.0))
+        assert( ( self.support >= 0.0 ) and ( self.support <= 1.0 ) )
         return self.support
-           
+    
+    # Returns count for this sequence - will assert if count is invalid (not been cached)
+    def getCount(self):
+        assert( self.count >= 0.0 )
+        return self.count
+
+# Appends the raw sequence as a sequence object and caches the support of the sequence
+# Using this utility function because we can't overload constructors in Python
+def appendSeqAndCacheSupport( aList, aRawSeq, anMis, seqDB ):
+    aList.append( Sequence( aRawSeq, anMis ) )
+    aList[ -1 ].cacheSupport( seqDB )
+    
+def extractAllSeqsWhichSatisfyTheirMIS( F, C ):
+    F[:] = [ seq for seq in C if ( seq.getSupport() >= seq.getMis() ) ]
 
 #### GSP Algorithm
 
 # Initial pass for MS-GSP
-def initPass( seqDB, misMap, L, F ):
+def initPass( L, F, ctx ):
     # Objectives:
     # 1. Find item 'I' with lowest MIS that has support greater than or equal to MIS(I)
     # 2. Output L : set of items that have support greater than MIS(I)
-    # 3. Output F : set of 1-sequences such that support <{J}> is greater than or equal to MIS(J), F is a subset of L
+    # 3. Output F : set of 1-sequences such that support <{J}> is greater than or equal to MIS(J), note: F is a subset of L
     
     # Count unique items in sequence database
     itemCountsMap = {}
-    for seq in seqDB:
+    for seq in ctx.seqDB:
         uniqueItemsInSeq = set()
         for trans in seq:
             for item in trans:
@@ -122,42 +156,64 @@ def initPass( seqDB, misMap, L, F ):
                 itemCountsMap[item]  = 1.0
             else:
                 itemCountsMap[item] += 1.0
-                    
+                        
     # Make possible 1-sequences
+    L[:] = []
     for key in itemCountsMap.keys():
-        support = itemCountsMap[key] / float( len( seqDB ) )
+        count = itemCountsMap[ key ]
+        support = count / float( len( ctx.seqDB ) )
         assert( ( 0.0 <= support ) and ( 1.0 >= support ) )
-        L.append( Sequence( [key], support ) )
+        L.append( Sequence( [[key]], ctx.misMap[ key ], count, support ) )
+        ctx.supportMap[key] = support # Not sure if we need this!
     
     # Sort possible 1-sequences by MIS
-    L.sort( key=lambda x:misMap[ x.seq[0] ] )
+    L.sort( key=lambda seqObj : seqObj.getMis() )
     
     # Determine first item with support >= MIS(item) - this item will have the lowest satisfied MIS
-    toItemId = lambda oneSeq : oneSeq.seq[ 0 ]
     idxItemWithLowestSatisfiedMIS = len( L )
     for idx in range( 0, len( L ) ):
-        if ( L[idx].getSupport() >= misMap[ toItemId( L[idx] ) ] ):
+        if ( L[idx].getSupport() >= L[idx].getMis() ):
             idxItemWithLowestSatisfiedMIS = idx
             break
     
     # Trim L of all items with support lower than item with lowest satisfied MIS
     # Note use of [:] to modify list in place rather than allocate a new list
-    minGlobalSatisfiedMis = misMap[ toItemId( L[idxItemWithLowestSatisfiedMIS] ) ]
-    satisfiesMinGlobalSatisfiedMis = lambda seq : (seq.getSupport() >= minGlobalSatisfiedMis)
-    L[:] = [ seq for seq in L if satisfiesMinGlobalSatisfiedMis( seq ) ]
+    minGlobalSatisfiedMis = L[idxItemWithLowestSatisfiedMIS].getMis()
+    L[:] = [ seq for seq in L if (seq.getSupport() >= minGlobalSatisfiedMis) ]
     
     # Determine frequent 1-sequences
-    for seq in L:
-        if ( seq.getSupport() >= misMap[ toItemId( seq ) ] ):
-            F.append( seq )
-
+    extractAllSeqsWhichSatisfyTheirMIS( F, L )
+    
     logging.getLogger("InitPass").info("L = " + str(L))
     logging.getLogger("InitPass").info("F = " + str(F))
 
+# Determines candidate 2-sequences
+def level2CandidateGen( C, L, ctx ):
+    C[:] = []
+    getFirstItemId = lambda seqObj : seqObj.seq[0][0]
+    for idxL in range(0, len(L)):
+        seqL = L[ idxL ]
+        # Assert we're working with sequences of length 1
+        assert( ( len( seqL.seq ) == 1 ) and ( len( seqL.seq[0] ) == 1 ) )
+        # See if 'l' satisfies it's own MIS
+        if ( seqL.getSupport() >= seqL.getMis() ):
+            # Create 2-tuples with all sequences 'h' where MIS(h) >= MIS(l)  
+            for idxH in range( idxL+1, len(L) ):
+                seqH = L[ idxH ]
+                # Assert sequences were pre-sorted by MIS
+                assert( seqH.getMis() >= seqL.getMis() )
+                # Only create tuple if sup(h) is greater than MIS(l)
+                if ( ( seqH.getSupport() >= seqL.getMis() ) and ( math.fabs( seqH.getSupport() - seqL.getSupport() ) <= ctx.sdc ) ):
+                    # Join seqL and seqH to create both <{l,h}> and <{l,h}>
+                    lId = getFirstItemId( seqL )
+                    hId = getFirstItemId( seqH )
+                    assert ( hId != lId ) # assert these items are unique!
+                    appendSeqAndCacheSupport( C, [ [ lId, hId ] ], seqL.getMis(), ctx.seqDB )
+                    appendSeqAndCacheSupport( C, [ [ lId ], [ hId ] ], seqL.getMis(), ctx.seqDB )
+                    
 # Main body of MS-GSP
 def MSGSPMain():       
-    seqDB = []                           # The sequence database
-    misMap = {}                          # A map of form item id -> minimum item support
+    ctx = Context()                      # Structure for storing "global" parameters
     dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
     paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
 
@@ -165,21 +221,32 @@ def MSGSPMain():
     initLogger()
     
     # Load sequence data from file
-    loadData( seqDB, dataPath )
-    logging.getLogger("MSGSPMain").info("Loaded seqDB: " + str(seqDB))
+    loadData( ctx.seqDB, dataPath )
+    logging.getLogger("MSGSPMain").info("Loaded seqDB: " + str(ctx.seqDB))
     
     # Initialize MIS values and support difference constraint threshold @TODO: support SDC!
-    sdc = loadParams(misMap,paramPath)
-    logging.getLogger("MSGSPMain").info("sdc: " + str(sdc))
+    ctx.sdc = loadParams(ctx.misMap, paramPath)
+    logging.getLogger("MSGSPMain").info("sdc: " + str(ctx.sdc))
     
     # Sort data according to MIS values
-    sortData( seqDB, misMap )
-    logging.getLogger("MSGSPMain").info("Sorted seqDB: " + str(seqDB))
+    sortData( ctx.seqDB, ctx.misMap )
+    logging.getLogger("MSGSPMain").info("Sorted seqDB: " + str(ctx.seqDB))
     
     # Generate all frequent 1-sequences
-    L=[]
-    F=[]
-    initPass( seqDB, misMap, L, F ) 
+    CHist = [[]] # used for generating candidate 2-sequences
+    FHist = [[]] # the set of frequent 1-sequences
+    initPass( CHist[0], FHist[0], ctx )
+    logging.getLogger("MSGSPMain").info("Frequent 1-sequences: " + str(FHist[0])) 
+    
+    # Generate candidate 2-sequences
+    CHist.append([])
+    level2CandidateGen( CHist[1], CHist[0], ctx )
+    logging.getLogger("MSGSPMain").info("Candidate 2-sequences: " + str(CHist[1]))
+    
+    # Obtain all frequent 2-sequences
+    FHist.append([])
+    extractAllSeqsWhichSatisfyTheirMIS( FHist[-1], CHist[-1] )
+    logging.getLogger("MSGSPMain").info("Frequent 2-sequences: " + str(FHist[1])) 
     
 #### Application entry point
 
