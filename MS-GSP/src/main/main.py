@@ -202,9 +202,17 @@ class Sequence:
             joinedRawSeq.append( [mergeItemId] )
         return joinedRawSeq
 
+# Returns True if parameter raw sequence is not found within list, False otherwise
+def isUniqueSeqWithinList( aList, aRawSeq ):
+    for seqObj in aList:
+        if seqObj.seq == aRawSeq:
+            return False
+    return True
+
 # Appends the raw sequence as a sequence object and caches the support of the sequence
 # Using this utility function because we can't overload constructors in Python
 def appendSeqAndCacheSupport( aList, aRawSeq, anMis, seqDB ):
+    assert( isUniqueSeqWithinList( aList, aRawSeq ) )
     aList.append( Sequence( aRawSeq, anMis ) )
     aList[ -1 ].cacheSupport( seqDB )
 
