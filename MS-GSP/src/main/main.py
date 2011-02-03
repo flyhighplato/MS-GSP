@@ -110,14 +110,14 @@ class Sequence:
         strSeq += "> Count: " + str( int(self.getCount()) )
         return strSeq
     
-    # Returns MIS value assumed to be in greater than or equal to 0.0
+    # Returns MIS value assumed to be greater than or equal to 0.0
     def getMis(self):
         assert( self.mis >= 0.0 )
         return self.mis
    
     # Computes and caches support for this sequence
     # Also, of note: the optimal way to avoid reads from the database is to compute the sequence counts for a single record in the database
-    # (i.e . for db for seqs instead of for seqs for db as is the case here
+    # (i.e . for db for seqs instead of for seqs for db as is the case here)
     def cacheSupport(self, seqDB):
         self.count = 0.0
         for seq in seqDB:
@@ -134,6 +134,73 @@ class Sequence:
     def getCount(self):
         assert( self.count >= 0.0 )
         return self.count
+    
+    # Returns item id of first item in sequence
+    def getFirstItemId(self):
+        assert( (len( self.seq ) > 0) and (len( self.seq[0] ) > 0 ) )
+        return self.seq[0][0]
+        
+    # Returns item id of last item in sequence
+    def getLastItemId(self):
+        assert( (len( self.seq ) > 0) and (len( self.seq[0] ) > 0 ) )
+        return self.seq[-1][-1]
+
+    # Returns True if item with parameter id contains lowest MIS and MIS is unique within the sequence, False otherwise
+    def itemHasUniqueMinMis(self, itemId, misMap):
+        assert( itemId in misMap )
+        itemMis = misMap[ itemId ]
+        itemCount = 0
+        for trans in self.seq:
+            for transItemId in trans:
+                if ( transItemId != itemId ):
+                    assert( itemId in misMap )
+                    if ( itemMis >= misMap[ transItemId ] ):
+                        return False
+                else:
+                    itemCount += 1
+                    if ( itemCount > 1 ):
+                        return False
+        assert( itemCount > 0 )
+        return True;
+    
+    # Returns True if first item contains lowest MIS and MIS is unique within sequence, False otherwise
+    def firstItemHasUniqueMinMis(self, misMap):
+        return self.itemHasUniqueMinMis( self.getFirstItemId(), misMap )
+    
+    # Returns True if last item contains lowest MIS and MIS is unique within sequence, False otherwise
+    def lastItemHasUniqueMinMis(self, misMap):
+        return self.itemHasUniqueMinMis( self.getLastItemId(), misMap )
+    
+    # Returns True if removing first element from this sequence and last element from parameter sequence results in same sequence, False otherwise
+    def canJoin(self, seqObj):
+        # Bounds checking
+        assert( (len( self.seq ) > 0) and (len( self.seq[0] ) > 0 ) )
+        assert( (len( seqObj.seq ) > 0) and (len( seqObj.seq[0] ) > 0 ) )
+        # Remove first element from this sequence (copying sequences because k should be small)
+        tmpDelFirst = self.seq[:]
+        del tmpDelFirst[0][0]
+        assert( tmpDelFirst != self.seq )
+        # Remove last element from parameter sequence
+        tmpDelLast = seqObj.seq[:]
+        del tmpDelLast[-1][-1]
+        assert( tmpDelLast != seqObj.seq )
+        # Return True if both sequences are the same, False otherwise
+        return (tmpDelFirst == tmpDelLast)
+    
+    # Returns new raw sequence with the result of joining this sequence with parameter sequence
+    def join(self, seqObj):
+        # Bounds checking
+        assert( (len( self.seq ) > 0) and (len( self.seq[0] ) > 0 ) )
+        assert( (len( seqObj.seq ) > 0) and (len( seqObj.seq[0] ) > 0 ) )
+        # Get item id to merge into this sequence
+        mergeItemId = seqObj.getLastItemId()
+        joinedRawSeq = self.seq[:]
+        # Determine if last item should be appended to last transaction or if a new transaction should be created
+        if ( len( seqObj.seq[-1] ) > 1 ):
+            joinedRawSeq[-1].append( mergeItemId ) 
+        else:
+            joinedRawSeq.append( [mergeItemId] )
+        return joinedRawSeq
 
 # Appends the raw sequence as a sequence object and caches the support of the sequence
 # Using this utility function because we can't overload constructors in Python
@@ -200,13 +267,17 @@ def initPass( L, F, ctx ):
 # Determines candidate 2-sequences
 def level2CandidateGen( C, L, ctx ):
     C[:] = []
-    getFirstItemId = lambda seqObj : seqObj.seq[0][0]
     for idxL in range(0, len(L)):
         seqL = L[ idxL ]
         # Assert we're working with sequences of length 1
         assert( ( len( seqL.seq ) == 1 ) and ( len( seqL.seq[0] ) == 1 ) )
         # See if 'l' satisfies it's own MIS
         if ( seqL.getSupport() >= seqL.getMis() ):
+            lId = seqL.getFirstItemId()
+            # BEGIN UNSUPPORTED CODE BLOCK
+            # Also create 2-tuple <{l}{l}> - it could exist!
+            appendSeqAndCacheSupport( C, [ [ lId ], [ lId ] ], seqL.getMis(), ctx.seqDB )
+            # END UNSUPPORTED CODE BLOCK
             # Create 2-tuples with all sequences 'h' where MIS(h) >= MIS(l)  
             for idxH in range( idxL+1, len(L) ):
                 seqH = L[ idxH ]
@@ -215,15 +286,41 @@ def level2CandidateGen( C, L, ctx ):
                 # Only create tuple if sup(h) is greater than MIS(l)
                 if ( ( seqH.getSupport() >= seqL.getMis() ) and ( math.fabs( seqH.getSupport() - seqL.getSupport() ) <= ctx.sdc ) ):
                     # Join seqL and seqH to create both <{l,h}> and <{l,h}>
-                    lId = getFirstItemId( seqL )
-                    hId = getFirstItemId( seqH )
+                    hId = seqH.getFirstItemId()
                     assert ( hId != lId ) # assert these items are unique!
                     appendSeqAndCacheSupport( C, [ [ lId, hId ] ], seqL.getMis(), ctx.seqDB )
                     appendSeqAndCacheSupport( C, [ [ lId ], [ hId ] ], seqL.getMis(), ctx.seqDB )
+                    # BEGIN UNSUPPORTED CODE BLOCK
+                    # Also create 2-tuple <{h},{l}> - else how could we get it?
+                    appendSeqAndCacheSupport( C, [ [ hId ], [ lId ] ], seqL.getMis(), ctx.seqDB )
+                    # END UNSUPPORTED CODE BLOCK
 
 # Determines candidate k-sequences where k is not 2
 def MSCandidateGenSPM( C, Fprev, ctx ):
-    return
+    # Join step: create candidate sequences by joining Fk-1 with Fk-1
+    # NOTE: seq1 joins seq2 and seq2 joins with seq1 iff seq1 = <abab...ab> and seq2 = <baba..ba>
+    for idx1, seq1 in enumerate( Fprev ):
+        if ( seq1.firstItemHasUniqueMinMis( ctx.misMap ) ):
+            # @TODO:
+            return
+        elif ( seq1.lastItemHasUniqueMinMis( ctx.misMap ) ):
+            # @TODO:
+            return
+        else:
+            # BEGIN UNSUPPORTED CODE BLOCK
+            # Attempt to join current sequence with itself, this is possible
+            if ( seq1.canJoin( seq1 ) ):
+                appendSeqAndCacheSupport( C, seq1.join(seq1), seq1.getMis(), ctx.seqDB )
+            # END UNSUPPORTED CODE BLOCK
+            
+            for idx2 in range( idx1+1, len( Fprev ) ):
+                seq2 = Fprev[ idx2 ]
+                if ( seq1.canJoin( seq2 ) ):
+                    appendSeqAndCacheSupport( C, seq1.join(seq2), min( seq1.getMis(), ctx.misMap[ seq2.getLastItemId() ] ), ctx.seqDB )
+                # BEGIN UNSUPPORTED CODE BLOCK
+                if ( seq2.canJoin( seq1 ) ):
+                    appendSeqAndCacheSupport( C, seq2.join(seq2), min( seq2.getMis(), ctx.misMap[ seq1.getLastItemId() ] ), ctx.seqDB )
+                # END UNSUPPORTED CODE BLOCK
 
 def printFreqSeqs( FHist ):
     for idxK in range( 0, len( FHist ) ):
@@ -273,7 +370,7 @@ def MSGSPMain():
     maxK = 3 # @TODO: Read from arguments/load from file
  
     # Generate remaining k-sequences   
-    for idxK in range ( 2, maxK ):
+    for idxK in range( 2, maxK ):
         assert( len( CHist) == idxK )
         assert( len( FHist) == idxK )
         CHist.append([])
