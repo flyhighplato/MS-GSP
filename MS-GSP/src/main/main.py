@@ -191,61 +191,27 @@ class Sequence:
         # Bounds checking
         assert( (len( self.seq ) > 0) and (len( self.seq[0] ) > 0 ) )
         assert( (len( seqObj.seq ) > 0) and (len( seqObj.seq[0] ) > 0 ) )
-        # Remove first element from this sequence (copying sequences because k should be small)
-        
-        #tmpDelFirst = self.seq[:]
-        
-        tmpDelFirst=[]
-        for trans in self.seq:
-            tempTrans=[]
-            for item in trans:
-                tempTrans.append(item)
-            tmpDelFirst.append(tempTrans)
-        
-        del tmpDelFirst[0][0]
-
-        
-        assert( tmpDelFirst != self.seq )
-        # Remove last element from parameter sequence
-        #tmpDelLast = seqObj.seq[:]
-        
-        tmpDelLast=[]
-        for trans in self.seq:
-            tempTrans=[]
-            for item in trans:
-                tempTrans.append(item)
-            tmpDelLast.append(tempTrans)
-            
-        del tmpDelLast[-1][-1]
-        assert( tmpDelLast != seqObj.seq )
-        # Return True if both sequences are the same, False otherwise
-        return (tmpDelFirst == tmpDelLast)
+        return ( self.withoutItemAtIdx( 0 ) == self.withoutItemAtIdx( -1 ) )
     
     #Returns new raw sequence with item at idx missing
     def withoutItemAtIdx(self, idx):
-        result=[]
+        result = copy.deepcopy( self.seq )
         i=0
-        
         if idx>=0:
-            for trans in self.seq:
-                temp=[]
-                for item in trans:
-                    if(i!=idx):
-                        temp.append(item)
+            for trans in result:
+                for idxItemInTrans in range( len(trans) ):
+                    if (i==idx):
+                        del trans[ idxItemInTrans ]
+                        return 
                     i+=1
-                if(len(temp)>0):
-                    result.insert(-1,temp)
         else:
             idx=abs(idx)-1
-            for trans in reversed(self.seq):
-                temp=[]
-                for item in reversed(trans):
-                    if(i!=idx):
-                        temp.insert(0,item)
-                    i+=1
-                if(len(temp)>0):
-                    result.insert(0,temp)
-                    
+            for trans in reversed(result):
+                for idxItemInTrans in range(len(trans)-1,-1,-1):
+                    if(i==idx):
+                        del trans[ idxItemInTrans ]
+                        return
+                    i+=1                   
         return result
             
                 
@@ -259,7 +225,8 @@ class Sequence:
         joinedRawSeq = copy.deepcopy(self.seq[:])
         # Determine if last item should be appended to last transaction or if a new transaction should be created
         if ( len( seqObj.seq[-1] ) > 1 ):
-            assert ( mergeItemId not in joinedRawSeq[-1] )
+            if(( mergeItemId not in joinedRawSeq[-1] )):
+                assert ( mergeItemId not in joinedRawSeq[-1] )
             joinedRawSeq[-1].append( mergeItemId )
 
         else:
@@ -270,15 +237,15 @@ class Sequence:
 def isUniqueSeqWithinList( aList, aRawSeq ):
     for seqObj in aList:
         if seqObj.seq == aRawSeq:
-            logging.getLogger("isUniqueSeqWithinList").info(str(aList)) 
-            logging.getLogger("isUniqueSeqWithinList").info(str(aRawSeq)) 
+            #logging.getLogger("isUniqueSeqWithinList").info(str(aList)) 
+            #logging.getLogger("isUniqueSeqWithinList").info(str(aRawSeq)) 
             return False
     return True
 
 # Appends the raw sequence as a sequence object and caches the support of the sequence
 # Using this utility function because we can't overload constructors in Python
 def appendSeqAndCacheSupport( aList, aRawSeq, anMis, seqDB ):
-    # assert( isUniqueSeqWithinList( aList, aRawSeq ) )
+    #assert( isUniqueSeqWithinList( aList, aRawSeq ) )
     if(isUniqueSeqWithinList( aList, aRawSeq )):
         aList.append( Sequence( aRawSeq, anMis ) )
         aList[ -1 ].cacheSupport( seqDB )
@@ -287,8 +254,6 @@ def appendSeqAndCacheSupport( aList, aRawSeq, anMis, seqDB ):
 def extractAllSeqsWhichSatisfyTheirMis( F, C):
     F[:] = [ seq for seq in C if ( seq.getSupport() >= seq.getMis() ) ]
 
-        
-        
 #### GSP Algorithm
 
 # Initial pass for MS-GSP
@@ -400,39 +365,47 @@ def MSCandidateGenSPM( C, Fprev, ctx ):
         
         for seq2 in Fprev:
             if ( seq1.firstItemHasUniqueMinMis( ctx.misMap ) ):                    
-                    if seq1.withoutItemAtIdx(1)==seq2.withoutItemAtIdx(-1) and ctx.misMap[seq2.seq[-1][-1]]>ctx.misMap[seq1.seq[0][0]]:
+                if seq1.withoutItemAtIdx(1)==seq2.withoutItemAtIdx(-1) and ctx.misMap[seq2.getLastItemId()]>ctx.misMap[seq1.getFirstItemId()]:
                            
-                        if (len(seq2.seq[-1])==1):
-                            c1 = copy.deepcopy(seq1.seq)
-                            c1.append([seq2.seq[-1][-1]])
-                            appendSeqAndCacheSupport( C, c1, seq1.getMis(), ctx.seqDB )
+                    if (len(seq2.seq[-1])==1):
+                        c1 = copy.deepcopy(seq1.seq)
+                        c1.append([seq2.getLastItemId()])
+                        appendSeqAndCacheSupport( C, c1, seq1.getMis(), ctx.seqDB )
                             
-                            
-                            if( (seq1.size()==2) and (seq1.length()==2) and (seq2.seq[-1][-1]>seq1.seq[-1][-1])):
-                                c2 = copy.deepcopy(seq1.seq)
-                                c2[-1].append( seq2.seq[-1][-1] )
-    
-                                appendSeqAndCacheSupport( C, c2, seq1.getMis(), ctx.seqDB )
+                        if( (seq1.size()==2) and (seq1.length()==2) and (seq2.getLastItemId()>seq1.getLastItemId())):
+                            c2 = copy.deepcopy(seq1.seq)
+                            c2[-1].append( seq2.getLastItemId() )
+                            appendSeqAndCacheSupport( C, c2, seq1.getMis(), ctx.seqDB )
                                         
-                        elif ((seq1.size()==1 and seq1.length()==2) and (seq2.seq[-1][-1]>seq1.seq[-1][-1])) or (seq1.length()>2):
+                        elif ((seq1.size()==1 and seq1.length()==2) and (seq2.getLastItemId()>seq1.getLastItemId())) or (seq1.length()>2):
                             
                             c2 = copy.deepcopy(seq1.seq)
-                            c2[-1].append( seq2.seq[-1][-1] ) 
-                            
+                            c2[-1].append( seq2.getLastItemId() )
                             appendSeqAndCacheSupport( C, c2, seq1.getMis(), ctx.seqDB )
-                            
-                        elif ( seq2.getRawSeq()[-1][-1] not in seq1.getRawSeq()[-1] ): 
-                            appendSeqAndCacheSupport( C, seq1.join(seq2), min( seq1.getMis(), ctx.misMap[ seq2.getLastItemId() ] ), ctx.seqDB )
-                        else:
-                            assert( (seq1.getRawSeq()==seq2.getRawSeq() and seq1.size()==1 and seq1.length()==2) or (seq1.length()==seq2.length() and seq1.size()==2 and seq2.size()==1))
+                                                                       
             elif ( seq2.lastItemHasUniqueMinMis( ctx.misMap ) ):
                 
-                            print("2",seq1,":",seq2)
-    
-            else:
-    
-                if ( seq1.canJoin( seq2 ) ):
-                    appendSeqAndCacheSupport( C, seq1.join(seq2), min( seq1.getMis(), ctx.misMap[ seq2.getLastItemId() ] ), ctx.seqDB )
+                if ( ( seq1.withoutItemAtIdx(0) == seq2.withoutItemAtIdx(-2) )  and (ctx.misMap[seq2.getLastItemId()]<ctx.misMap[seq1.getFirstItemId()]) ):
+                
+                    if ( len(seq1.seq[0] ) == 1 ):
+                        c1 = [[seq1.getFirstItemId()]]
+                        c1.extend( copy.deepcopy(seq2.seq) )
+                        appendSeqAndCacheSupport( C, c1, seq2.getMis(), ctx.seqDB )
+                            
+                        if( (seq2.size()==2) and (seq2.length()==2) and (seq1.getFirstItemId()<seq2.getFirstItemId())):
+                            c2 = copy.deepcopy(seq2.seq)
+                            c2[0].insert( 0, seq1.getFirstItemId() )
+                            appendSeqAndCacheSupport( C, c2, seq2.getMis(), ctx.seqDB )
+                                        
+                        elif ((seq2.size()==1 and seq2.length()==2) and (seq2.getFirstItemId()>seq1.getFirstItemId())) or (seq2.length()>2):
+                            c2 = copy.deepcopy(seq2.seq)
+                            c2[0].insert( 0, seq1.getFirstItemId() )
+                            appendSeqAndCacheSupport( C, c2, seq2.getMis(), ctx.seqDB )
+                            
+            if ( seq1.canJoin( seq2 ) ):
+                #if(seq1.getRawSeq()[0][0]==33):
+                #    print(seq1," ",seq2)
+                appendSeqAndCacheSupport( C, seq1.join(seq2), min( seq1.getMis(), ctx.misMap[ seq2.getLastItemId() ] ), ctx.seqDB )
       
 #    prune( C, Fprev )
 
@@ -497,8 +470,6 @@ def MSGSPMain():
     
     # Output frequent sequences
     printFreqSeqs( FHist )
-    
-    
     
 #### Application entry point
 
