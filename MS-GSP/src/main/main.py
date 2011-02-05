@@ -199,6 +199,11 @@ class Sequence:
                 idxCurItem += 1
         assert( False ) # Should never reach here
     
+    # Returns support for item at parameter idx
+    def getSupportForItemAtIdx(self, idx, supportMap ):
+        assert( self.getItemAtIdx( idx ) in supportMap )
+        return supportMap[ self.getItemAtIdx( idx ) ]
+    
     # Returns new raw sequence with item at idx missing
     def getRawSeqWithoutItemAtIdx(self, idxItemToDel):
         outRawSeq = copy.deepcopy( self.getRawSeq() )
@@ -241,6 +246,10 @@ class Sequence:
         else:
             joinedRawSeq.append( [itemToMerge] )
         return joinedRawSeq
+
+# Returns True if the support difference between items at parameter indices of two sequences satisfies the sdc, False otherwise
+def satisfiesSDC( seqObj1, idxItem1, seqObj2, idxItem2, ctx ):
+    return ( math.fabs( seqObj1.getSupportForItemAtIdx( idxItem1, ctx.supportMap ) - seqObj2.getSupportForItemAtIdx( idxItem2, ctx.supportMap ) ) <= ctx.sdc )
 
 # Returns True if parameter raw sequence is not found within parameter sequence object list, False otherwise
 def isUniqueRawSeqWithinList( lstSeqObjs, rawSeq ):
@@ -327,7 +336,7 @@ def level2CandidateGen( C, L, ctx ):
                 # Assert sequences were pre-sorted by MIS
                 assert( seqObjH.getMis() >= seqObjL.getMis() )
                 # Only create tuple if sup(h) is greater than MIS(l)
-                if ( ( seqObjH.getSupport() >= seqObjL.getMis() ) and ( math.fabs( seqObjH.getSupport() - seqObjL.getSupport() ) <= ctx.sdc ) ):
+                if ( ( seqObjH.getSupport() >= seqObjL.getMis() ) and satisfiesSDC( seqObjL, 0, seqObjH, 0, ctx ) ):
                     # Join seqL and seqH to create both <{l,h}> and <{l,h}>
                     hId = seqObjH.getFirstItemId()
                     assert ( hId != lId ) # assert these items are unique!
@@ -335,11 +344,11 @@ def level2CandidateGen( C, L, ctx ):
                     appendSeqObjAndCacheSupport( C, [ [ lId ], [ hId ] ], seqObjL.getMis(), ctx.rawSeqDB )
                     # Also create 2-tuple <{h},{l}> - else how could we get it?
                     appendSeqObjAndCacheSupport( C, [ [ hId ], [ lId ] ], seqObjL.getMis(), ctx.rawSeqDB )
-    
+
 def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
     assert( (ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]) and ( seqObj1.getMis() == ctx.misMap[seqObj1.getFirstItemId()] ) )
     # Enforce sdc - early out if support difference exceeds threshold
-    if ( math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx( 1 ) ] - ctx.supportMap[ seqObj2.getItemAtIdx( -1 ) ] ) > ctx.sdc ):
+    if not satisfiesSDC( seqObj1, 1, seqObj2, -1, ctx ):
         return
     if seqObj1.getRawSeqWithoutItemAtIdx(1)==seqObj2.getRawSeqWithoutItemAtIdx(-1):
         if ( len( seqObj2.getRawSeq()[-1] ) == 1 ):
@@ -361,7 +370,7 @@ def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqO
 def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
     assert( (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) and ( seqObj2.getMis() == ctx.misMap[seqObj2.getLastItemId()] ) )
     # Enforce sdc - early out if support difference exceeds threshold
-    if ( math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx( 0 ) ] - ctx.supportMap[ seqObj2.getItemAtIdx( -2 ) ] ) > ctx.sdc ):
+    if not satisfiesSDC( seqObj1, 0, seqObj2, -2, ctx ):
         return
     if ( seqObj1.getRawSeqWithoutItemAtIdx(0) == seqObj2.getRawSeqWithoutItemAtIdx(-2) ):
         if ( len( seqObj1.getRawSeq()[0] ) == 1 ):
@@ -414,7 +423,7 @@ def MSCandidateGenSPM( C, FPrev, ctx ):
                 MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )        
             elif ( seqObj2.lastItemHasUniqueMinMis( ctx.misMap ) and (ctx.misMap[seqObj2.getLastItemId()] < ctx.misMap[seqObj1.getFirstItemId()]) ):
                 MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )  
-            elif ( seqObj1.canJoin( seqObj2 ) and ( ctx.sdc > math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx(0) ] - ctx.supportMap[ seqObj2.getItemAtIdx(-1) ] ) ) ):
+            elif ( seqObj1.canJoin( seqObj2 ) and satisfiesSDC( seqObj1, 0, seqObj2, -1, ctx ) ):
                 appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2, ctx.misMap), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
     # Prune any candidate sets if all their k-1 subsets are not frequent (with the exception of the subset missing the item with the lowest mis)
     C[:] = MSCandidateGenSPM_prune( C, FPrev, ctx.misMap )
