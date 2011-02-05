@@ -187,8 +187,20 @@ class Sequence:
     def lastItemHasUniqueMinMis(self, misMap):
         return self.itemHasUniqueMinMis( self.getLastItemId(), misMap )
     
+    def getItemAtIdx(self, idxItemToGet):
+        idxCurItem = 0
+        if ( idxItemToGet < 0 ):
+            idxItemToGet = self.length() + idxItemToGet
+        assert( 0 <= idxItemToGet < self.length() )
+        for trans in self.getRawSeq():
+            for idxItemInTrans in range( len( trans ) ):
+                if ( idxCurItem == idxItemToGet ):
+                    return trans[ idxItemInTrans ]
+                idxCurItem += 1
+        assert( False ) # Should never reach here
+    
     # Returns new raw sequence with item at idx missing
-    def getRawSeqSansItemAtIdx(self, idxItemToDel):
+    def getRawSeqWithoutItemAtIdx(self, idxItemToDel):
         outRawSeq = copy.deepcopy( self.getRawSeq() )
         idxCurItem = 0
         if ( idxItemToDel < 0 ):
@@ -210,7 +222,7 @@ class Sequence:
         # Bounds checking
         assert( ( len( self.getRawSeq() ) > 0 ) and ( len( self.getRawSeq()[0] ) > 0 ) )
         assert( (len( seqObj.getRawSeq() ) > 0) and ( len( seqObj.getRawSeq()[0] ) > 0 ) )
-        return ( self.getRawSeqSansItemAtIdx( 0 ) == seqObj.getRawSeqSansItemAtIdx( -1 ) )
+        return ( self.getRawSeqWithoutItemAtIdx( 0 ) == seqObj.getRawSeqWithoutItemAtIdx( -1 ) )
                 
     # Returns new raw sequence with the result of joining this sequence with parameter sequence
     def join(self, seqObj):
@@ -322,30 +334,9 @@ def level2CandidateGen( C, L, ctx ):
                     appendSeqObjAndCacheSupport( C, [ [ lId ], [ hId ] ], seqObjL.getMis(), ctx.rawSeqDB )
                     # Also create 2-tuple <{h},{l}> - else how could we get it?
                     appendSeqObjAndCacheSupport( C, [ [ hId ], [ lId ] ], seqObjL.getMis(), ctx.rawSeqDB )
-
-# Extracts all k-sequences in C such that all k-1 subsequences are frequent based on FPrev (i.e. Fk-1)
-def prune( C, FPrev ):
-    CPruned = []
-    for candidateSeqObj in C:
-        bAreAllSubsFreq = True
-        for idxItemToDel in range( candidateSeqObj.length() ):
-            rawCandidateSeqObj = candidateSeqObj.getRawSeqSansItemAtIdx( idxItemToDel )
-            bSubExists = False
-            for frequentSeqObj in FPrev:
-                if ( frequentSeqObj.getRawSeq() == rawCandidateSeqObj ):
-                    bSubExists = True
-                    break
-            
-            if not bSubExists:
-                bAreAllSubsFreq = False
-                break
-        
-        if bAreAllSubsFreq:
-            CPruned.append( candidateSeqObj )
-    return CPruned
     
 def MSCandidateGenSPM_handleFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
-    if seqObj1.getRawSeqSansItemAtIdx(1)==seqObj2.getRawSeqSansItemAtIdx(-1) and ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]:
+    if seqObj1.getRawSeqWithoutItemAtIdx(1)==seqObj2.getRawSeqWithoutItemAtIdx(-1) and ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]:
         if ( len( seqObj2.getRawSeq()[-1] ) == 1 ):
             c1 = copy.deepcopy( seqObj1.getRawSeq() )
             c1.append([seqObj2.getLastItemId()])
@@ -362,7 +353,7 @@ def MSCandidateGenSPM_handleFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )
                 appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
 
 def MSCandidateGenSPM_handleLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
-    if ( ( seqObj1.getRawSeqSansItemAtIdx(0) == seqObj2.getRawSeqSansItemAtIdx(-2) )  and (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) ):
+    if ( ( seqObj1.getRawSeqWithoutItemAtIdx(0) == seqObj2.getRawSeqWithoutItemAtIdx(-2) )  and (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) ):
         if ( len( seqObj1.getRawSeq()[0] ) == 1 ):
             c1 = [[seqObj1.getFirstItemId()]]
             c1.extend( copy.deepcopy(seqObj2.getRawSeq()) )
@@ -378,6 +369,29 @@ def MSCandidateGenSPM_handleLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
                 c2[0].insert( 0, seqObj1.getFirstItemId() )
                 appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
 
+# Extracts all k-sequences in C such that all k-1 subsequences are frequent based on FPrev (i.e. Fk-1)
+def MSCandidateGenSPM_prune( C, FPrev, misMap ):
+    CPruned = []
+    for candidateSeqObj in C:
+        bAreAllSubsFreq = True
+        for idxItemToDel in range( candidateSeqObj.length() ):
+            # @TODO: Handle case where multiple objects with same min MIS exist in candidate sequence
+            if ( candidateSeqObj.getMis() != misMap[ candidateSeqObj.getItemAtIdx( idxItemToDel ) ] ):
+                rawCandidateSeqObj = candidateSeqObj.getRawSeqWithoutItemAtIdx( idxItemToDel )
+                bSubExists = False
+                for frequentSeqObj in FPrev:
+                    if ( frequentSeqObj.getRawSeq() == rawCandidateSeqObj ):
+                        bSubExists = True
+                        break
+            
+                if not bSubExists:
+                    bAreAllSubsFreq = False
+                    break
+        
+        if bAreAllSubsFreq:
+            CPruned.append( candidateSeqObj )
+    return CPruned
+
 # Determines candidate k-sequences where k is not 2
 def MSCandidateGenSPM( C, FPrev, ctx ):
     # Join step: create candidate sequences by joining Fk-1 with Fk-1
@@ -392,7 +406,7 @@ def MSCandidateGenSPM( C, FPrev, ctx ):
             if ( seqObj1.canJoin( seqObj2 ) ):
                 appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
       
-    #C[:] = prune( C, FPrev )
+    C[:] = MSCandidateGenSPM_prune( C, FPrev, ctx.misMap )
 
 def printFreqSeqObjs( FHist ):
     for idxK in range( len( FHist ) ):
