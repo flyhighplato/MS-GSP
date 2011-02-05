@@ -289,7 +289,7 @@ def initPass( L, F, ctx ):
         support = count / float( len( ctx.rawSeqDB ) )
         assert( ( 0.0 <= support ) and ( 1.0 >= support ) )
         L.append( Sequence( [[key]], ctx.misMap[ key ], count, support ) )
-        ctx.supportMap[key] = support # Not sure if we need this!
+        ctx.supportMap[key] = support # Cache item supports
     
     # Sort possible 1-sequences by MIS
     L.sort( key = lambda seqObj : seqObj.getMis() )
@@ -338,6 +338,9 @@ def level2CandidateGen( C, L, ctx ):
     
 def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
     assert( (ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]) and ( seqObj1.getMis() == ctx.misMap[seqObj1.getFirstItemId()] ) )
+    # Enforce sdc - early out if support difference exceeds threshold
+    if ( math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx( 1 ) ] - ctx.supportMap[ seqObj2.getItemAtIdx( -1 ) ] ) > ctx.sdc ):
+        return
     if seqObj1.getRawSeqWithoutItemAtIdx(1)==seqObj2.getRawSeqWithoutItemAtIdx(-1):
         if ( len( seqObj2.getRawSeq()[-1] ) == 1 ):
             c1 = copy.deepcopy( seqObj1.getRawSeq() )
@@ -356,7 +359,10 @@ def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqO
             appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
 
 def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
-    assert( ctx.misMap[seqObj2.getLastItemId()] < ctx.misMap[seqObj1.getFirstItemId()] )
+    assert( (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) and ( seqObj2.getMis() == ctx.misMap[seqObj2.getLastItemId()] ) )
+    # Enforce sdc - early out if support difference exceeds threshold
+    if ( math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx( 0 ) ] - ctx.supportMap[ seqObj2.getItemAtIdx( -2 ) ] ) > ctx.sdc ):
+        return
     if ( seqObj1.getRawSeqWithoutItemAtIdx(0) == seqObj2.getRawSeqWithoutItemAtIdx(-2) ):
         if ( len( seqObj1.getRawSeq()[0] ) == 1 ):
             c1 = [[seqObj1.getFirstItemId()]]
@@ -402,12 +408,13 @@ def MSCandidateGenSPM( C, FPrev, ctx ):
     # Join step: create candidate sequences by joining Fk-1 with Fk-1
     # NOTE: seqObj1 joins seqObj2 and seqObj2 joins with seqObj1 iff seqObj1 = <abab...ab> and seqObj2 = <baba..ba>
     for seqObj1 in FPrev:
+        bSeqObj1_FirstItemHasUniqueMinMis = seqObj1.firstItemHasUniqueMinMis( ctx.misMap )
         for seqObj2 in FPrev:
-            if ( seqObj1.firstItemHasUniqueMinMis( ctx.misMap ) and (ctx.misMap[seqObj2.getLastItemId()] > ctx.misMap[seqObj1.getFirstItemId()]) ):
+            if ( bSeqObj1_FirstItemHasUniqueMinMis and (ctx.misMap[seqObj2.getLastItemId()] > ctx.misMap[seqObj1.getFirstItemId()]) ):
                 MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )        
             elif ( seqObj2.lastItemHasUniqueMinMis( ctx.misMap ) and (ctx.misMap[seqObj2.getLastItemId()] < ctx.misMap[seqObj1.getFirstItemId()]) ):
                 MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )  
-            elif ( seqObj1.canJoin( seqObj2 ) ):
+            elif ( seqObj1.canJoin( seqObj2 ) and ( ctx.sdc > math.fabs( ctx.supportMap[ seqObj1.getItemAtIdx(0) ] - ctx.supportMap[ seqObj2.getItemAtIdx(-1) ] ) ) ):
                 appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2, ctx.misMap), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
     # Prune any candidate sets if all their k-1 subsets are not frequent (with the exception of the subset missing the item with the lowest mis)
     C[:] = MSCandidateGenSPM_prune( C, FPrev, ctx.misMap )
