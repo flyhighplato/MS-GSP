@@ -187,28 +187,30 @@ class Sequence:
     def lastItemHasUniqueMinMis(self, misMap):
         return self.itemHasUniqueMinMis( self.getLastItemId(), misMap )
     
+    # Returns new raw sequence with item at idx missing
+    def getRawSeqSansItemAtIdx(self, idxItemToDel):
+        outRawSeq = copy.deepcopy( self.getRawSeq() )
+        idxCurItem = 0
+        if ( idxItemToDel < 0 ):
+            idxItemToDel = self.length() + idxItemToDel
+        assert( 0 <= idxItemToDel < self.length() )
+        for idxTrans, trans in enumerate( outRawSeq ):
+            for idxItemInTrans in range( len(trans) ):
+                if ( idxCurItem == idxItemToDel ):
+                    del trans[ idxItemInTrans ]
+                    if ( len( trans ) == 0 ):
+                        del outRawSeq[ idxTrans ]
+                    assert( outRawSeq != self.getRawSeq() )
+                    return outRawSeq
+                idxCurItem += 1
+        assert( False ) # Should never reach here!  
+    
     # Returns True if removing first element from this sequence and last element from parameter sequence results in same sequence, False otherwise
     def canJoin(self, seqObj):
         # Bounds checking
         assert( ( len( self.getRawSeq() ) > 0 ) and ( len( self.getRawSeq()[0] ) > 0 ) )
         assert( (len( seqObj.getRawSeq() ) > 0) and ( len( seqObj.getRawSeq()[0] ) > 0 ) )
         return ( self.getRawSeqSansItemAtIdx( 0 ) == seqObj.getRawSeqSansItemAtIdx( -1 ) )
-    
-    # Returns new raw sequence with item at idx missing
-    def getRawSeqSansItemAtIdx(self, idxToDel):
-        rawSeqResult = copy.deepcopy( self.getRawSeq() )
-        idxCur = 0
-        if ( idxToDel < 0 ):
-            idxToDel = self.length() + idxToDel
-        assert( 0 <= idxToDel < self.length() )
-        for trans in rawSeqResult:
-            for idxItemInTrans in range( len(trans) ):
-                if ( idxCur == idxToDel ):
-                    del trans[ idxItemInTrans ]
-                    assert( rawSeqResult != self.getRawSeq() )
-                    return rawSeqResult
-                idxCur += 1
-        assert( False ) # Should never reach here!  
                 
     # Returns new raw sequence with the result of joining this sequence with parameter sequence
     def join(self, seqObj):
@@ -289,7 +291,7 @@ def initPass( L, F, ctx ):
     # Trim L of all items with support lower than item with lowest satisfied MIS
     # Note use of [:] to modify list in place rather than allocate a new list
     minGlobalSatisfiedMis = L[idxItemWithLowestSatisfiedMIS].getMis()
-    L[:] = [ seq for seq in L if (seq.getSupport() >= minGlobalSatisfiedMis) ]
+    L[:] = [ seqObj for seqObj in L if (seqObj.getSupport() >= minGlobalSatisfiedMis) ]
     
     # Determine frequent 1-sequences
     extractAllSeqObjsWhichSatisfyTheirMis( F, L )
