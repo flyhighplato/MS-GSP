@@ -222,7 +222,6 @@ class Sequence:
         if ( len( seqObj.getRawSeq()[-1] ) > 1 ):
             assert ( itemToMerge not in joinedRawSeq[-1] )
             joinedRawSeq[-1].append( itemToMerge )
-
         else:
             joinedRawSeq.append( [itemToMerge] )
         return joinedRawSeq
@@ -343,6 +342,40 @@ def prune( C, FPrev ):
             CPruned.append( candidateSeqObj )
     return CPruned
     
+def MSCandidateGenSPM_handleFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
+    if seqObj1.getRawSeqSansItemAtIdx(1)==seqObj2.getRawSeqSansItemAtIdx(-1) and ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]:
+        if ( len( seqObj2.getRawSeq()[-1] ) == 1 ):
+            c1 = copy.deepcopy( seqObj1.getRawSeq() )
+            c1.append([seqObj2.getLastItemId()])
+            appendSeqObjAndCacheSupport( C, c1, seqObj1.getMis(), ctx.rawSeqDB )
+                
+            if( (seqObj1.size()==2) and (seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId()) ):
+                c2 = copy.deepcopy(seqObj1.getRawSeq())
+                c2[-1].append( seqObj2.getLastItemId() )
+                appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
+                            
+            elif ((seqObj1.size()==1 and seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId())) or (seqObj1.length()>2):
+                c2 = copy.deepcopy(seqObj1.getRawSeq())
+                c2[-1].append( seqObj2.getLastItemId() )
+                appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
+
+def MSCandidateGenSPM_handleLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
+    if ( ( seqObj1.getRawSeqSansItemAtIdx(0) == seqObj2.getRawSeqSansItemAtIdx(-2) )  and (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) ):
+        if ( len( seqObj1.getRawSeq()[0] ) == 1 ):
+            c1 = [[seqObj1.getFirstItemId()]]
+            c1.extend( copy.deepcopy(seqObj2.getRawSeq()) )
+            appendSeqObjAndCacheSupport( C, c1, seqObj2.getMis(), ctx.rawSeqDB )
+                
+            if( (seqObj2.size()==2) and (seqObj2.length()==2) and (seqObj1.getFirstItemId()<seqObj2.getFirstItemId())):
+                c2 = copy.deepcopy(seqObj2.seq)
+                c2[0].insert( 0, seqObj1.getFirstItemId() )
+                appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB )
+                            
+            elif ((seqObj2.size()==1 and seqObj2.length()==2) and (seqObj2.getFirstItemId()>seqObj1.getFirstItemId())) or (seqObj2.length()>2):
+                c2 = copy.deepcopy(seqObj2.seq)
+                c2[0].insert( 0, seqObj1.getFirstItemId() )
+                appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
+
 # Determines candidate k-sequences where k is not 2
 def MSCandidateGenSPM( C, FPrev, ctx ):
     # Join step: create candidate sequences by joining Fk-1 with Fk-1
@@ -350,43 +383,10 @@ def MSCandidateGenSPM( C, FPrev, ctx ):
     for seqObj1 in FPrev:
         for seqObj2 in FPrev:
             if ( seqObj1.firstItemHasUniqueMinMis( ctx.misMap ) ):
-                               
-                if seqObj1.getRawSeqSansItemAtIdx(1)==seqObj2.getRawSeqSansItemAtIdx(-1) and ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getFirstItemId()]:
-                    
-                    if ( len( seqObj2.getRawSeq()[-1] ) == 1 ):
-                        c1 = copy.deepcopy( seqObj1.getRawSeq() )
-                        c1.append([seqObj2.getLastItemId()])
-                        appendSeqObjAndCacheSupport( C, c1, seqObj1.getMis(), ctx.rawSeqDB )
-                            
-                        if( (seqObj1.size()==2) and (seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId()) ):
-                            c2 = copy.deepcopy(seqObj1.getRawSeq())
-                            c2[-1].append( seqObj2.getLastItemId() )
-                            appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
-                                        
-                        elif ((seqObj1.size()==1 and seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId())) or (seqObj1.length()>2):
-                            c2 = copy.deepcopy(seqObj1.getRawSeq())
-                            c2[-1].append( seqObj2.getLastItemId() )
-                            appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
-                                                                       
+                MSCandidateGenSPM_handleFirstItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )        
             elif ( seqObj2.lastItemHasUniqueMinMis( ctx.misMap ) ):
+                MSCandidateGenSPM_handleLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )
                 
-                if ( ( seqObj1.getRawSeqSansItemAtIdx(0) == seqObj2.getRawSeqSansItemAtIdx(-2) )  and (ctx.misMap[seqObj2.getLastItemId()]<ctx.misMap[seqObj1.getFirstItemId()]) ):
-                
-                    if ( len( seqObj1.getRawSeq()[0] ) == 1 ):
-                        c1 = [[seqObj1.getFirstItemId()]]
-                        c1.extend( copy.deepcopy(seqObj2.getRawSeq()) )
-                        appendSeqObjAndCacheSupport( C, c1, seqObj2.getMis(), ctx.rawSeqDB )
-                            
-                        if( (seqObj2.size()==2) and (seqObj2.length()==2) and (seqObj1.getFirstItemId()<seqObj2.getFirstItemId())):
-                            c2 = copy.deepcopy(seqObj2.seq)
-                            c2[0].insert( 0, seqObj1.getFirstItemId() )
-                            appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB )
-                                        
-                        elif ((seqObj2.size()==1 and seqObj2.length()==2) and (seqObj2.getFirstItemId()>seqObj1.getFirstItemId())) or (seqObj2.length()>2):
-                            c2 = copy.deepcopy(seqObj2.seq)
-                            c2[0].insert( 0, seqObj1.getFirstItemId() )
-                            appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB )
-                            
             if ( seqObj1.canJoin( seqObj2 ) ):
                 appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
       
