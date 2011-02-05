@@ -225,7 +225,7 @@ class Sequence:
         return ( self.getRawSeqWithoutItemAtIdx( 0 ) == seqObj.getRawSeqWithoutItemAtIdx( -1 ) )
                 
     # Returns new raw sequence with the result of joining this sequence with parameter sequence
-    def join(self, seqObj):
+    def join(self, seqObj, misMap):
         # Bounds checking
         assert( ( len( self.getRawSeq() ) > 0 ) and ( len( self.getRawSeq()[0] ) > 0 ) )
         assert( ( len( seqObj.getRawSeq() ) > 0 ) and (len( seqObj.getRawSeq()[0] ) > 0 ) )
@@ -236,6 +236,8 @@ class Sequence:
         if ( len( seqObj.getRawSeq()[-1] ) > 1 ):
             assert ( itemToMerge not in joinedRawSeq[-1] )
             joinedRawSeq[-1].append( itemToMerge )
+            # sort by MIS
+            joinedRawSeq[-1].sort( key = lambda itemId : misMap[ itemId ] )
         else:
             joinedRawSeq.append( [itemToMerge] )
         return joinedRawSeq
@@ -342,15 +344,16 @@ def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqO
             c1.append([seqObj2.getLastItemId()])
             appendSeqObjAndCacheSupport( C, c1, seqObj1.getMis(), ctx.rawSeqDB )
                 
-            if( (seqObj1.size()==2) and (seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId()) ):
+            if( (seqObj1.size()==2) and (seqObj1.length()==2) and (ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getLastItemId()]) ):
                 c2 = copy.deepcopy(seqObj1.getRawSeq())
                 c2[-1].append( seqObj2.getLastItemId() )
                 appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
                             
-            elif ((seqObj1.size()==1 and seqObj1.length()==2) and (seqObj2.getLastItemId()>seqObj1.getLastItemId())) or (seqObj1.length()>2):
-                c2 = copy.deepcopy(seqObj1.getRawSeq())
-                c2[-1].append( seqObj2.getLastItemId() )
-                appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
+        elif (seqObj1.length()>2) or ((seqObj1.length()==2 and seqObj1.size()==1) and (ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getLastItemId()])):
+            c2 = copy.deepcopy(seqObj1.getRawSeq())
+            c2[-1].append( seqObj2.getLastItemId() )
+            c2[-1].sort( key = lambda itemId: ctx.misMap[ itemId ] ) # Maintain lexographic order by MIS value
+            appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
 
 def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
     assert( ctx.misMap[seqObj2.getLastItemId()] < ctx.misMap[seqObj1.getFirstItemId()] )
@@ -360,15 +363,16 @@ def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqOb
             c1.extend( copy.deepcopy(seqObj2.getRawSeq()) )
             appendSeqObjAndCacheSupport( C, c1, seqObj2.getMis(), ctx.rawSeqDB )
                 
-            if( (seqObj2.size()==2) and (seqObj2.length()==2) and (seqObj1.getFirstItemId()<seqObj2.getFirstItemId())):
+            if( (seqObj2.size()==2) and (seqObj2.length()==2) and (ctx.misMap[seqObj1.getFirstItemId()]<ctx.misMap[seqObj2.getFirstItemId()]) ):
                 c2 = copy.deepcopy(seqObj2.seq)
                 c2[0].insert( 0, seqObj1.getFirstItemId() )
                 appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB )
-                            
-            elif ((seqObj2.size()==1 and seqObj2.length()==2) and (seqObj2.getFirstItemId()>seqObj1.getFirstItemId())) or (seqObj2.length()>2):
-                c2 = copy.deepcopy(seqObj2.seq)
-                c2[0].insert( 0, seqObj1.getFirstItemId() )
-                appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
+
+        elif (seqObj2.length()>2) or ((seqObj2.length()==1 and seqObj2.size()==2) and (ctx.misMap[seqObj2.getFirstItemId()]>ctx.misMap[seqObj1.getFirstItemId()])):
+            c2 = copy.deepcopy(seqObj2.seq)
+            c2[0].insert( 0, seqObj1.getFirstItemId() )
+            c2[0].sort( key = lambda itemId: ctx.misMap[ itemId ] ) # Maintain lexographic order by MIS value
+            appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
 
 # Extracts all k-sequences in C such that all k-1 subsequences are frequent based on FPrev (i.e. Fk-1)
 def MSCandidateGenSPM_prune( C, FPrev, misMap ):
@@ -404,7 +408,7 @@ def MSCandidateGenSPM( C, FPrev, ctx ):
             elif ( seqObj2.lastItemHasUniqueMinMis( ctx.misMap ) and (ctx.misMap[seqObj2.getLastItemId()] < ctx.misMap[seqObj1.getFirstItemId()]) ):
                 MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx )  
             elif ( seqObj1.canJoin( seqObj2 ) ):
-                appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
+                appendSeqObjAndCacheSupport( C, seqObj1.join(seqObj2, ctx.misMap), min( seqObj1.getMis(), ctx.misMap[ seqObj2.getLastItemId() ] ), ctx.rawSeqDB )
     # Prune any candidate sets if all their k-1 subsets are not frequent (with the exception of the subset missing the item with the lowest mis)
     C[:] = MSCandidateGenSPM_prune( C, FPrev, ctx.misMap )
 
