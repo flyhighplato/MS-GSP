@@ -105,6 +105,8 @@ def level2CandidateGen( C, L, ctx ):
             # Create 2-tuples with all sequences 'h' where MIS(h) >= MIS(l)  
             for idxH in range( idxL+1, len(L) ):
                 seqObjH = L[ idxH ]
+                if((seqObjL.getFirstItemId()==13 and seqObjH.getFirstItemId()==2) or (seqObjL.getFirstItemId()==2 and seqObjH.getFirstItemId()==13)):
+                    print("FOUND")
                 # Assert sequences were pre-sorted by MIS
                 assert( seqObjH.getMis() >= seqObjL.getMis() )
                 # Only create tuple if sup(h) is greater than MIS(l)
