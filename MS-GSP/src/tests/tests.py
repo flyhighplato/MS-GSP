@@ -22,6 +22,13 @@ class TestMSGSPOutput(unittest.TestCase):
         self.ctx = Context(dataPath,paramPath)
         self.maxK=2
     
+    def getSupport(self,item):
+        support=0
+        for rawSeq in self.ctx.rawSeqDB:
+            if(rawSeqContains(rawSeq,[[item]])):
+                support+=1
+        return support
+    
     #Output discrepancies between the brute force output and the algorithm
     def reportDiscrepancies(self,nextSeqs,FHist,k):
         print("\r\n -- " + str(k+1) + "-sequences --")
@@ -38,16 +45,23 @@ class TestMSGSPOutput(unittest.TestCase):
                     freqCount+=1
             actualSupport = freqCount/len(self.ctx.rawSeqDB)
             minMIS=sys.float_info.max
-            maxMIS=sys.float_info.min
+            maxSupport=sys.float_info.min
+            minSupport=sys.float_info.max
             
             for trans in seq:
                 for item in trans:
                     if(self.ctx.misMap[item]<minMIS):
                         minMIS=self.ctx.misMap[item]
-                    if(self.ctx.misMap[item]>maxMIS):
-                        maxMIS=self.ctx.misMap[item]
-               
-            if(minMIS<=actualSupport and maxMIS-minMIS<self.ctx.sdc):
+                    sup=self.getSupport(item)
+                    if(sup>maxSupport):
+                        maxSupport=sup
+                    if(sup<minSupport):
+                        minSupport=sup
+                    
+            maxSupport=maxSupport/len(self.ctx.rawSeqDB)
+            minSupport=minSupport/len(self.ctx.rawSeqDB)
+            
+            if(minMIS<=actualSupport and maxSupport-minSupport<=self.ctx.sdc):
                 bIsInFHist=False
                 for fseq in FHist[k]:
                     if(seq==fseq.getRawSeq()):
@@ -56,7 +70,7 @@ class TestMSGSPOutput(unittest.TestCase):
 
                 if(not bIsInFHist):
                     countMissing+=1
-                    print("MISSING:",seq,":\r\n\tMIS ==> ",minMIS,"<",actualSupport,",\r\n\tSDC ==> (",maxMIS,"-",minMIS,"=",(maxMIS-minMIS),") <",self.ctx.sdc," from: ")
+                    print("MISSING:",seq,":\r\n\tMIS ==> ",minMIS,"<",actualSupport,",\r\n\tSDC ==> (",maxSupport,"-",minSupport,"=",(maxSupport-minSupport),") <",self.ctx.sdc," from: ")
                     for idx,contSeqs in enumerate(containingSeqs):
                         print("\t\t",idx+1,".",contSeqs)
                 else:
@@ -80,15 +94,23 @@ class TestMSGSPOutput(unittest.TestCase):
                         freqCount+=1
                 actualSupport = freqCount/len(self.ctx.rawSeqDB)
                 minMIS=sys.float_info.max
-                maxMIS=sys.float_info.min
+                maxSupport=sys.float_info.min
+                minSupport=sys.float_info.max
                 
                 for trans in fseq.getRawSeq():
                     for item in trans:
                         if(self.ctx.misMap[item]<minMIS):
                             minMIS=self.ctx.misMap[item]
-                        if(self.ctx.misMap[item]>maxMIS):
-                            maxMIS=self.ctx.misMap[item]
-                print("INCORRECT:",fseq.getRawSeq(),":\r\n\tMIS ==> ",minMIS,"<",actualSupport,",\r\n\tSDC ==> (",maxMIS,"-",minMIS,"=",(maxMIS-minMIS),") <",self.ctx.sdc," found in: ")
+                        sup=self.getSupport(item)
+                    if(sup>maxSupport):
+                        maxSupport=sup
+                    if(sup<minSupport):
+                        minSupport=sup
+                
+                maxSupport=maxSupport/len(self.ctx.rawSeqDB)
+                minSupport=minSupport/len(self.ctx.rawSeqDB)
+                
+                print("INCORRECT?:",fseq.getRawSeq(),":\r\n\tMIS ==> ",minMIS,"<",actualSupport,",\r\n\tSDC ==> (",maxSupport,"-",minSupport,"=",(maxSupport-minSupport),") <",self.ctx.sdc," found in: ")
                 for idx,contSeqs in enumerate(containingSeqs):
                         print("\t\t",idx+1,".",contSeqs)
                 

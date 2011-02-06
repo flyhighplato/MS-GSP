@@ -8,20 +8,9 @@ Created on Jan 26, 2011
 import copy
 import logging
 import math
-import re
-import sys
 
-####
 
-# Structure for easier passing around of "global" parameters
-class Context:
-    # Constructor
-    def __init__(self):
-        self.rawSeqDB = []             # The sequence database
-        self.misMap = {}               # A map of form item id -> minimum item support
-        self.supportMap = {}           # A map of form item id -> actual support
-        self.sdc = sys.float_info.max  # The maximum support difference constraint allowed between two sequences      
-        
+    
 #### Initialization utilities
 
 # Set up logging
@@ -36,227 +25,10 @@ def initLogger():
     console.setFormatter(formatter)
     logging.getLogger('').addHandler(console)
 
-# Loads data file into a database of sequences, where each sequence is a series list of transactions
-def loadData( rawSeqDB, fileName ):
-    FILE = open( fileName, "r" )
-    for line in FILE:
-        line = line.rstrip('\n')
-        strRawSeq = re.split( r"<{|}{|}>", line )
-        lstRawSeq = []
-        for strTrans in strRawSeq:
-            if ( strTrans != '' ):
-                lstTrans = []
-                lstTransItems = strTrans.split( ", " ) 
-                for transItem in lstTransItems:
-                    lstTrans.append( int(transItem) )
-                lstRawSeq.append( lstTrans )
-        rawSeqDB.append( lstRawSeq )
-
-# Loads parameters for minimum item support and support difference constraint from data file
-def loadParams( misMap, fileName ):
-    sdc = sys.float_info.max
-    FILE = open( fileName, "r" )
-    for line in FILE:
-        line = line.rstrip('\n')
-        param = re.findall(r"\d+\.*\d*",line)
-        # Make sure we're dealing with the two types of parameters that we can handle
-        assert( ( len( param ) == 2 and line.startswith("MIS") ) or ( len( param ) == 1 and line.startswith( "SDC" ) ) )
-        # Specifying minimum support for an item
-        if(line.startswith("MIS")):
-            misMap[ int(param[0]) ] = float(param[1]) # mapping item id -> MIS
-        # Specifying support difference constraint
-        else:
-            sdc = float(param[0])
-    return sdc
-
-# Sorts transactions in parameter sequence database by user supplied MIS values
-def sortData( rawSeqDB, misMap ):
-    for rawSeq in rawSeqDB:
-        for trans in rawSeq:
-            trans.sort(key=lambda x:misMap[x])
-
-#### Sequence utilities
-
-# Returns True if seqA contains seqB, False otherwise
-def rawSeqContains( rawSeqSup, rawSeqSub ):
-    if ( len( rawSeqSub ) == 0 ):
-        return True
-    idxSub = 0
-    for idxSup in range( 0, len( rawSeqSup ) ):
-        if ( set( rawSeqSub[ idxSub ] ).issubset( set( rawSeqSup[ idxSup ] ) ) ):
-            idxSub += 1
-            if ( idxSub == len( rawSeqSub ) ):
-                return True
-    return False
-
-# Structure for representing a sequence object
-class Sequence:
-    # Constructor
-    def __init__( self, rawSeq=[], mis=-1.0, count=-1.0, support=-1.0 ):
-        self.rawSeq = rawSeq
-        self.mis = mis
-        self.count = count
-        self.support = support
-    
-    # String representation
-    def __repr__(self):
-        strSeq = "<"
-        for trans in self.getRawSeq():
-            strSeq += "{"
-            if ( len( trans ) >= 1 ):
-                strSeq += str( trans[0] )
-            for idx in range ( 1, len( trans ) ):
-                strSeq += "," + str( trans[ idx ] )
-            strSeq += "}"
-        strSeq += "> Count: " + str( int(self.getCount()) )
-        return strSeq
-    
-    # Returns MIS value assumed to be greater than or equal to 0.0
-    def getMis(self):
-        assert( self.mis >= 0.0 )
-        return self.mis
-    
-    # Accessor for internal raw sequence
-    def getRawSeq(self):
-        return self.rawSeq
-    
-    # Returns total number of items in the sequence
-    def length(self):
-        length=0
-        for trans in self.getRawSeq():
-            length += len( trans )
-        return length
-    
-    # Returns total number of transaction in the sequence
-    def size(self):
-        return len(self.getRawSeq())
-   
-    # Computes and caches support for this sequence
-    # Also, of note: the optimal way to avoid reads from the database is to compute the sequence counts for a single record in the database
-    # (i.e . for db for seqs instead of for seqs for db as is the case here)
-    def cacheSupport(self, rawSeqDB):
-        self.count = 0.0
-        for rawSeq in rawSeqDB:
-            if ( rawSeqContains( rawSeq, self.getRawSeq() ) ):
-                self.count += 1.0
-        self.support = self.count / float(len(rawSeqDB))
-        
-    # Returns support from [0.0 to 1.0] of this sequence - will assert if support is invalid (not been cached)
-    def getSupport(self):
-        assert( ( self.support >= 0.0 ) and ( self.support <= 1.0 ) )
-        return self.support
-    
-    # Returns count for this sequence - will assert if count is invalid (not been cached)
-    def getCount(self):
-        assert( self.count >= 0.0 )
-        return self.count
-    
-    # Returns item id of first item in sequence
-    def getFirstItemId(self):
-        assert( (len( self.getRawSeq() ) > 0) and (len( self.getRawSeq()[0] ) > 0 ) )
-        return self.getRawSeq()[0][0]
-        
-    # Returns item id of last item in sequence
-    def getLastItemId(self):
-        assert( ( len( self.getRawSeq() ) > 0) and ( len( self.getRawSeq()[0] ) > 0 ) )
-        return self.getRawSeq()[-1][-1]
-
-    # Returns True if item with parameter id contains lowest MIS and MIS is unique within the sequence, False otherwise
-    def itemHasUniqueMinMis(self, itemId, misMap):
-        assert( itemId in misMap )
-        itemMis = misMap[ itemId ]
-        itemCount = 0
-        for trans in self.getRawSeq():
-            for transItemId in trans:
-                if ( transItemId != itemId ):
-                    assert( itemId in misMap )
-                    if ( itemMis >= misMap[ transItemId ] ):
-                        return False
-                else:
-                    itemCount += 1
-                    if ( itemCount > 1 ):
-                        return False
-        assert( itemCount == 1 )
-        return True;
-    
-    # Returns True if first item contains lowest MIS and MIS is unique within sequence, False otherwise
-    def firstItemHasUniqueMinMis(self, misMap):
-        return self.itemHasUniqueMinMis( self.getFirstItemId(), misMap )
-    
-    # Returns True if last item contains lowest MIS and MIS is unique within sequence, False otherwise
-    def lastItemHasUniqueMinMis(self, misMap):
-        return self.itemHasUniqueMinMis( self.getLastItemId(), misMap )
-    
-    def getItemAtIdx(self, idxItemToGet):
-        idxCurItem = 0
-        if ( idxItemToGet < 0 ):
-            idxItemToGet = self.length() + idxItemToGet
-        assert( 0 <= idxItemToGet < self.length() )
-        for trans in self.getRawSeq():
-            for idxItemInTrans in range( len( trans ) ):
-                if ( idxCurItem == idxItemToGet ):
-                    return trans[ idxItemInTrans ]
-                idxCurItem += 1
-        assert( False ) # Should never reach here
-    
-    # Returns support for item at parameter idx
-    def getSupportForItemAtIdx(self, idx, supportMap ):
-        assert( self.getItemAtIdx( idx ) in supportMap )
-        return supportMap[ self.getItemAtIdx( idx ) ]
-    
-    # Returns new raw sequence with item at idx missing
-    def getRawSeqWithoutItemAtIdx(self, idxItemToDel):
-        outRawSeq = copy.deepcopy( self.getRawSeq() )
-        idxCurItem = 0
-        if ( idxItemToDel < 0 ):
-            idxItemToDel = self.length() + idxItemToDel
-        assert( 0 <= idxItemToDel < self.length() )
-        for idxTrans, trans in enumerate( outRawSeq ):
-            for idxItemInTrans in range( len(trans) ):
-                if ( idxCurItem == idxItemToDel ):
-                    del trans[ idxItemInTrans ]
-                    if ( len( trans ) == 0 ):
-                        del outRawSeq[ idxTrans ]
-                    assert( outRawSeq != self.getRawSeq() )
-                    return outRawSeq
-                idxCurItem += 1
-        assert( False ) # Should never reach here!  
-    
-    # Returns True if removing first element from this sequence and last element from parameter sequence results in same sequence, False otherwise
-    def canJoin(self, seqObj):
-        # Bounds checking
-        assert( ( len( self.getRawSeq() ) > 0 ) and ( len( self.getRawSeq()[0] ) > 0 ) )
-        assert( (len( seqObj.getRawSeq() ) > 0) and ( len( seqObj.getRawSeq()[0] ) > 0 ) )
-        return ( self.getRawSeqWithoutItemAtIdx( 0 ) == seqObj.getRawSeqWithoutItemAtIdx( -1 ) )
-                
-    # Returns new raw sequence with the result of joining this sequence with parameter sequence
-    def join(self, seqObj, misMap):
-        # Bounds checking
-        assert( ( len( self.getRawSeq() ) > 0 ) and ( len( self.getRawSeq()[0] ) > 0 ) )
-        assert( ( len( seqObj.getRawSeq() ) > 0 ) and (len( seqObj.getRawSeq()[0] ) > 0 ) )
-        # Get item id to merge into this sequence
-        itemToMerge = seqObj.getLastItemId()
-        joinedRawSeq = copy.deepcopy(self.getRawSeq())
-        # Determine if last item should be appended to last transaction or if a new transaction should be created
-        if ( len( seqObj.getRawSeq()[-1] ) > 1 ):
-            assert ( itemToMerge not in joinedRawSeq[-1] )
-            joinedRawSeq[-1].append( itemToMerge )
-            # sort by MIS
-            joinedRawSeq[-1].sort( key = lambda itemId : misMap[ itemId ] )
-        else:
-            joinedRawSeq.append( [itemToMerge] )
-        return joinedRawSeq
 
 # Returns True if the support difference between items at parameter indices of two sequences satisfies the sdc, False otherwise
 def satisfiesSDC( seqObj1, idxItem1, seqObj2, idxItem2, ctx ):
     return ( math.fabs( seqObj1.getSupportForItemAtIdx( idxItem1, ctx.supportMap ) - seqObj2.getSupportForItemAtIdx( idxItem2, ctx.supportMap ) ) <= ctx.sdc )
-
-# Returns True if parameter raw sequence is not found within parameter sequence object list, False otherwise
-def isUniqueRawSeqWithinList( lstSeqObjs, rawSeq ):
-    for seqObj in lstSeqObjs:
-        if seqObj.getRawSeq() == rawSeq:
-            return False
-    return True
 
 # Appends the raw sequence as a sequence object and caches the support of the sequence
 # Using this utility function because we can't overload constructors in Python
@@ -379,12 +151,12 @@ def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqOb
             appendSeqObjAndCacheSupport( C, c1, seqObj2.getMis(), ctx.rawSeqDB )
                 
             if( (seqObj2.size()==2) and (seqObj2.length()==2) and (ctx.misMap[seqObj1.getFirstItemId()]<ctx.misMap[seqObj2.getFirstItemId()]) ):
-                c2 = copy.deepcopy(seqObj2.seq)
+                c2 = copy.deepcopy(seqObj2.getRawSeq())
                 c2[0].insert( 0, seqObj1.getFirstItemId() )
                 appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB )
 
         elif (seqObj2.length()>2) or ((seqObj2.length()==1 and seqObj2.size()==2) and (ctx.misMap[seqObj2.getFirstItemId()]>ctx.misMap[seqObj1.getFirstItemId()])):
-            c2 = copy.deepcopy(seqObj2.seq)
+            c2 = copy.deepcopy(seqObj2.getRawSeq())
             c2[0].insert( 0, seqObj1.getFirstItemId() )
             c2[0].sort( key = lambda itemId: ctx.misMap[ itemId ] ) # Maintain lexographic order by MIS value
             appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
@@ -436,25 +208,13 @@ def printFreqSeqObjs( FHist ):
         print()
   
 # Main body of MS-GSP
-def MSGSPMain():       
-    ctx = Context()                      # Structure for storing "global" parameters
+def MSGSPMain(maxK = 10):                             # Structure for storing "global" parameters
     dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
     paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
 
-    # Initialize logging
-    initLogger()
     
-    # Load sequence data from file
-    loadData( ctx.rawSeqDB, dataPath )
-    logging.getLogger("MSGSPMain").info("Loaded seqDB: " + str(ctx.rawSeqDB))
     
-    # Initialize MIS values and support difference constraint threshold @TODO: support SDC!
-    ctx.sdc = loadParams(ctx.misMap, paramPath)
-    logging.getLogger("MSGSPMain").info("sdc: " + str(ctx.sdc))
-    
-    # Sort data according to MIS values
-    sortData( ctx.rawSeqDB, ctx.misMap )
-    logging.getLogger("MSGSPMain").info("Sorted seqDB: " + str(ctx.rawSeqDB))
+    ctx = Context(dataPath,paramPath)
     
     # Generate all frequent 1-sequences
     CHist = [[]] # used for generating candidate 2-sequences
@@ -472,9 +232,6 @@ def MSGSPMain():
     extractAllSeqObjsWhichSatisfyTheirMis( FHist[-1], CHist[-1] )
     logging.getLogger("MSGSPMain").info("Frequent 2-sequences: " + str(FHist[1]))
     
-    # The max length of frequent k-sequences to obtain
-    maxK = 10 # @TODO: Read from arguments/load from file
- 
     # Generate remaining k-sequences   
     for idxK in range( 2, maxK ):
         assert( len( CHist) == idxK )
@@ -488,9 +245,19 @@ def MSGSPMain():
         logging.getLogger("MSGSPMain").info("Frequent " + str(idxK+1) + "-sequences: " + str(FHist[-1]))
     
     # Output frequent sequences
-    printFreqSeqObjs( FHist )
+    #printFreqSeqObjs( FHist )
+    return FHist
     
 #### Application entry point
 
 if __name__ == '__main__':
-    MSGSPMain()
+    from Sequence import Sequence,isUniqueRawSeqWithinList
+    from Context import Context
+    
+    # Initialize logging
+    initLogger()
+    FHist=MSGSPMain(2)
+    printFreqSeqObjs( FHist )
+else:
+    from main.Sequence import Sequence,isUniqueRawSeqWithinList
+    from main.Context import Context
