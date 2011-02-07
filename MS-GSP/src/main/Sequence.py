@@ -2,6 +2,7 @@
 Created on Feb 5, 2011
 
 @author: garyturovsky
+@author: alanperezrathke
 '''
 
 import copy

@@ -2,7 +2,9 @@
 Created on Feb 5, 2011
 
 @author: garyturovsky
+@author: alanperezrathke
 '''
+
 import logging
 import re
 import sys
@@ -60,7 +62,7 @@ def loadParams( misMap, fileName ):
     return sdc
 
 # Sorts transactions in parameter sequence database by user supplied MIS values
-def sortData(rawSeqDB, misMap):
+def sortData( rawSeqDB, misMap ):
     for rawSeq in rawSeqDB:
         for trans in rawSeq:
             trans.sort(key=lambda x:misMap[x])

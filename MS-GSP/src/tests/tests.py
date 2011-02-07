@@ -2,6 +2,7 @@
 Created on Feb 5, 2011
 
 @author: garyturovsky
+@author: alanperezrathke
 '''
 
 import unittest
@@ -29,14 +30,14 @@ class TestMSGSPOutput(unittest.TestCase):
                 support+=1
         return support
     
-    #Output discrepancies between the brute force output and the algorithm
+    # Output discrepancies between the brute force output and the algorithm
     def reportDiscrepancies(self,nextSeqs,FHist,k):
         nextSeqsCopy=copy.deepcopy(nextSeqs)
         print("\r\n -- " + str(k+1) + "-sequences --")
         countMissing=0
         countFound=0
         
-        #Check for missing sequences
+        # Check for missing sequences
         for idx,seq in enumerate(copy.deepcopy(nextSeqsCopy)):
             freqCount=0
             containingSeqs=[]
@@ -62,9 +63,7 @@ class TestMSGSPOutput(unittest.TestCase):
                     
             maxSupport=maxSupport/len(self.ctx.rawSeqDB)
             minSupport=minSupport/len(self.ctx.rawSeqDB)
-            
-            
-                    
+                        
             if(minMIS<=actualSupport and maxSupport-minSupport<=self.ctx.sdc):
                 
                 bIsInFHist=False
@@ -85,7 +84,8 @@ class TestMSGSPOutput(unittest.TestCase):
                 nextSeqsCopy.remove(seq)
         
         countIncorrect=0
-        #Check for incorrect sequences
+        
+        # Check for incorrect sequences
         for fseq in FHist[k]:
             bIsInNextSeqs=False
             for seq in nextSeqsCopy:
@@ -126,26 +126,25 @@ class TestMSGSPOutput(unittest.TestCase):
         print(countMissing," items missing")
         self.assertTrue(countMissing==0 and countIncorrect==0,"There are missing and/or incorrect items!")
         
-        
     def test_BruteForce(self):
-        #Get history of frequent sequences from the algorithm
+        # Get history of frequent sequences from the algorithm
         FHist=MSGSPMain(self.maxK)
 
-        #Grab all unique items in our sequence DB
+        # Grab all unique items in our sequence DB
         uniqueItems=set()
         for rawSeq in self.ctx.rawSeqDB:
             for trans in rawSeq:
                 for item in trans:
                     uniqueItems.add(item)
         
-        #Build 1-sequence collection
+        # Build 1-sequence collection
         nextSeqs=[]
         for item in uniqueItems:
             nextSeqs.append( [[item]] )
         
         self.reportDiscrepancies(nextSeqs,FHist,0)
         
-        #Build k-sequence collections and test each one
+        # Build k-sequence collections and test each one
         for k in range(1,self.maxK):
             prevSeqs=copy.deepcopy(nextSeqs)
             nextSeqs=[]
