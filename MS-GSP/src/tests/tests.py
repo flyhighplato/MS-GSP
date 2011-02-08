@@ -30,7 +30,6 @@ class TestMSGSPOutput(unittest.TestCase):
                 support+=1
         return support
     
-<<<<<<< HEAD
     def getSeqSupport(self,seq):
         containingSeqs=[]
         for rawSeq in self.ctx.rawSeqDB:
@@ -68,53 +67,19 @@ class TestMSGSPOutput(unittest.TestCase):
         
         return stats
         
-    #Output discrepancies between the brute force output and the algorithm
-=======
     # Output discrepancies between the brute force output and the algorithm
->>>>>>> 5ab31c956e56997cee89efc7d54e60acc56e9419
     def reportDiscrepancies(self,nextSeqs,FHist,k):
         nextSeqsCopy=copy.deepcopy(nextSeqs)
         print("\r\n -- " + str(k+1) + "-sequences --")
         countMissing=0
         countFound=0
         
-<<<<<<< HEAD
         #Check for missing sequences in the MSGSP output
         for idx,seq in enumerate(copy.deepcopy(nextSeqsCopy)):
                     
             stats=self.getSeqStats(seq)
        
             if(stats.minMIS<=stats.actualSupport and stats.maxSupport-stats.minSupport<=self.ctx.sdc):
-=======
-        # Check for missing sequences
-        for idx,seq in enumerate(copy.deepcopy(nextSeqsCopy)):
-            freqCount=0
-            containingSeqs=[]
-            for rawSeq in self.ctx.rawSeqDB:
-                if(rawSeqContains(rawSeq,seq)):
-                    containingSeqs.append(rawSeq)
-                    freqCount+=1
-            actualSupport = freqCount/len(self.ctx.rawSeqDB)
-            minMIS=sys.float_info.max
-            maxSupport=sys.float_info.min
-            minSupport=sys.float_info.max
-            
-            
-            for trans in seq:
-                for item in trans:
-                    if(self.ctx.misMap[item]<minMIS):
-                        minMIS=self.ctx.misMap[item]
-                    sup=self.getSupport(item)
-                    if(sup>maxSupport):
-                        maxSupport=sup
-                    if(sup<minSupport):
-                        minSupport=sup
-                    
-            maxSupport=maxSupport/len(self.ctx.rawSeqDB)
-            minSupport=minSupport/len(self.ctx.rawSeqDB)
-                        
-            if(minMIS<=actualSupport and maxSupport-minSupport<=self.ctx.sdc):
->>>>>>> 5ab31c956e56997cee89efc7d54e60acc56e9419
                 
                 bIsInFHist=False
                 for fseq in FHist[k]:
@@ -133,15 +98,9 @@ class TestMSGSPOutput(unittest.TestCase):
                     
                 nextSeqsCopy.remove(seq)
         
-<<<<<<< HEAD
-        
         #Check for incorrect sequences
         countIncorrect=0
-=======
-        countIncorrect=0
-        
-        # Check for incorrect sequences
->>>>>>> 5ab31c956e56997cee89efc7d54e60acc56e9419
+
         for fseq in FHist[k]:
             
             #Check if it exists in collection of sequences from the brute force approach
