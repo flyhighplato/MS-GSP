@@ -3,6 +3,7 @@ Created on Feb 5, 2011
 
 @author: alanperezrathke
 @author: garyturovsky
+@author: alanperezrathke
 '''
 
 import copy

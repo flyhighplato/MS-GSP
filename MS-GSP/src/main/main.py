@@ -8,8 +8,6 @@ Created on Jan 26, 2011
 import copy
 import logging
 import math
-
-
     
 #### Initialization utilities
 
@@ -208,12 +206,10 @@ def printFreqSeqObjs( FHist ):
         print()
   
 # Main body of MS-GSP
-def MSGSPMain(maxK = 10):                             # Structure for storing "global" parameters
+def MSGSPMain(maxK = 10):
     dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
     paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
 
-    
-    
     ctx = Context(dataPath,paramPath)
     
     # Generate all frequent 1-sequences
@@ -243,21 +239,24 @@ def MSGSPMain(maxK = 10):                             # Structure for storing "g
         FHist.append([])
         extractAllSeqObjsWhichSatisfyTheirMis( FHist[-1], CHist[-1] )
         logging.getLogger("MSGSPMain").info("Frequent " + str(idxK+1) + "-sequences: " + str(FHist[-1]))
-    
-    # Output frequent sequences
-    #printFreqSeqObjs( FHist )
+
     return FHist
-    
+
 #### Application entry point
 
-if __name__ == '__main__':
-    from Sequence import Sequence,isUniqueRawSeqWithinList
-    from Context import Context
-    
+def appMain():    
     # Initialize logging
     initLogger()
-    FHist=MSGSPMain(2)
+    FHist = MSGSPMain(6) # max k-value
     printFreqSeqObjs( FHist )
+
+#### Conditional run main and set up imports
+        
+if __name__ == '__main__':
+    # Imports
+    from Sequence import Sequence,isUniqueRawSeqWithinList
+    from Context import Context
+    appMain();
 else:
-    from main.Sequence import Sequence,isUniqueRawSeqWithinList
+    from main.Sequence import Sequence, isUniqueRawSeqWithinList
     from main.Context import Context
