@@ -67,3 +67,4 @@ def sortData( rawSeqDB, misMap ):
     for rawSeq in rawSeqDB:
         for trans in rawSeq:
             trans.sort(key=lambda x:misMap[x])
+            

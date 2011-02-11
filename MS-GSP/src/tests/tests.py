@@ -5,22 +5,66 @@ Created on Feb 5, 2011
 @author: alanperezrathke
 '''
 
-import unittest
 import copy
+import random
 import sys
+import unittest
 
 from main.Context import Context
 from main.Sequence import rawSeqContains
 from main.main import MSGSPMain
 
 class TestMSGSPOutput(unittest.TestCase):
-
+    def generateInputs(self):
+        dataFile = open(self.dataPath, 'w')
+        paramFile = open(self.paramPath, 'w')
+        
+        allSeqs=[]
+        uniqueItems={}
+        for i in range(0,100):
+            seq=[]
+            seqLength = random.randint(1,self.maxSeqLength)
+            while seqLength>0:
+                transLen = random.randint(1,seqLength)
+                trans=[]
+                for j in range(0,transLen):
+                    seqLength-=1
+                    item = random.randint(1,self.maxUniqueItems)
+                    trans.append(item)
+                    if item not in uniqueItems:
+                        uniqueItems[item]=random.random()
+                seq.append(trans)
+            allSeqs.append(seq)
+        
+        for seq in allSeqs:
+            s = "<"
+            for trans in seq:
+                s+="{"
+                for item in trans[0:-2]:
+                    s+=str(item) + ", "
+                s+=str(trans[-1]) + "}"
+            s+=">\r\n"
+            dataFile.write(s)
+            
+        for key in uniqueItems.keys():
+            s = "MIS( " + str(key) + " ) = " + str(uniqueItems[key]) + "\r\n"
+            paramFile.write(s)
+        
+        paramFile.write("SDC = " + str(random.random()) + "\r\n")
+        
+         
     def setUp(self):
-        dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
-        paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
-
-        self.ctx = Context(dataPath,paramPath)
-        self.maxK=4
+        self.dataPath = "../../../Data/UnitTestData.txt"  # The path to the input data @TODO: Read from arguments!
+        self.paramPath = "../../../Data/UnitTestPara.txt" # The path to the MIS parameter data @TODO: Read from arguments!
+        self.maxUniqueItems=30
+        self.maxSeqLength=30
+        self.maxK=3
+        
+        self.generateInputs()
+        print("Input files generated...")
+        self.ctx = Context(self.dataPath,self.paramPath)
+        print("Context created...")
+        
     
     #Returns amount of sequences in support of item
     def getSupport(self,item):
@@ -92,6 +136,7 @@ class TestMSGSPOutput(unittest.TestCase):
                     print("MISSING:",seq,":\r\n\tMIS ==> ",stats.minMIS,"<",stats.actualSupport,",\r\n\tSDC ==> (",stats.maxSupport,"-",stats.minSupport,"=",(stats.maxSupport-stats.minSupport),") <",self.ctx.sdc," from: ")
                     for idx,contSeqs in enumerate(stats.containingSeqs):
                         print("\t\t",str(idx+1) + ".",contSeqs)
+                        
                 else:
                     countFound+=1
             else:
@@ -127,8 +172,11 @@ class TestMSGSPOutput(unittest.TestCase):
         self.assertTrue(countMissing==0 and countIncorrect==0,"There are missing and/or incorrect items!")
         
     def test_BruteForce(self):
+    
         # Get history of frequent sequences from the algorithm
-        FHist=MSGSPMain(self.maxK)
+        FHist=MSGSPMain(self.maxK,self.dataPath,self.paramPath)
+        
+        print("Finished running MSGSPMain. Beginning verification...")
 
         # Grab all unique items in our sequence DB
         uniqueItems=set()
@@ -158,7 +206,11 @@ class TestMSGSPOutput(unittest.TestCase):
                     
                     c=copy.deepcopy(seq)
                     c.append([item])
-                    nextSeqs.append(c)
+                    
+                    stats=self.getSeqStats(c)
+       
+                    if(stats.minMIS<=stats.actualSupport and stats.maxSupport-stats.minSupport<=self.ctx.sdc):
+                        nextSeqs.append(c)
    
             self.reportDiscrepancies(nextSeqs,FHist,k)
 

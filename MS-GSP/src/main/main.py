@@ -206,10 +206,8 @@ def printFreqSeqObjs( FHist ):
         print()
   
 # Main body of MS-GSP
-def MSGSPMain(maxK = 10):
-    dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
-    paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
-
+def MSGSPMain(maxK = 10, dataPath = "../../../Data/data.txt", paramPath="../../../Data/para.txt"):
+    
     ctx = Context(dataPath,paramPath)
     
     # Generate all frequent 1-sequences
@@ -247,7 +245,10 @@ def MSGSPMain(maxK = 10):
 def appMain():    
     # Initialize logging
     initLogger()
-    FHist = MSGSPMain(6) # max k-value
+    dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
+    paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
+
+    FHist = MSGSPMain(6,dataPath,paramPath) # max k-value
     printFreqSeqObjs( FHist )
 
 #### Conditional run main and set up imports
