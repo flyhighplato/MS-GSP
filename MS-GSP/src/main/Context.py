@@ -1,7 +1,6 @@
 '''
 Created on Feb 5, 2011
 
-@author: alanperezrathke
 @author: garyturovsky
 @author: alanperezrathke
 '''
@@ -39,8 +38,10 @@ def loadData( rawSeqDB, fileName ):
         for strTrans in strRawSeq:
             if ( strTrans != '' ):
                 lstTrans = []
-                lstTransItems = strTrans.split( ", " ) 
-                for transItem in lstTransItems:
+                lstTransItems = strTrans.split( "," ) 
+                for transItemUnstripped in lstTransItems:
+                    # Trim whitespace from begging and end of string
+                    transItem = transItemUnstripped.strip()
                     lstTrans.append( int(transItem) )
                 lstRawSeq.append( lstTrans )
         rawSeqDB.append( lstRawSeq )
