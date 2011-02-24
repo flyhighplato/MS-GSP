@@ -25,7 +25,7 @@ class Sequence:
             if ( len( trans ) >= 1 ):
                 strSeq += str( trans[0] )
             for idx in range ( 1, len( trans ) ):
-                strSeq += "," + str( trans[ idx ] )
+                strSeq += ", " + str( trans[ idx ] )
             strSeq += "}"
         strSeq += "> Count: " + str( int(self.getCount()) )
         return strSeq
@@ -161,7 +161,7 @@ class Sequence:
             assert ( itemToMerge not in joinedRawSeq[-1] )
             joinedRawSeq[-1].append( itemToMerge )
             # sort by MIS
-            joinedRawSeq[-1].sort( key = lambda itemId : misMap[ itemId ] )
+            joinedRawSeq[-1].sort( key = lambda itemId : ( misMap[ itemId ], itemId ) )
         else:
             joinedRawSeq.append( [itemToMerge] )
         return joinedRawSeq

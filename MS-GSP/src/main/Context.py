@@ -52,20 +52,21 @@ def loadParams( misMap, fileName ):
     FILE = open( fileName, "r" )
     for line in FILE:
         line = line.rstrip('\n')
-        param = re.findall(r"\d+\.*\d*",line)
-        # Make sure we're dealing with the two types of parameters that we can handle
-        assert( ( len( param ) == 2 and line.startswith("MIS") ) or ( len( param ) == 1 and line.startswith( "SDC" ) ) )
-        # Specifying minimum support for an item
-        if(line.startswith("MIS")):
-            misMap[ int(param[0]) ] = float(param[1]) # mapping item id -> MIS
-        # Specifying support difference constraint
-        else:
-            sdc = float(param[0])
+        if len(line)!=0:
+            param = re.findall(r"\d+\.*\d*",line)
+            # Make sure we're dealing with the two types of parameters that we can handle
+            assert( ( len( param ) == 2 and line.startswith("MIS") ) or ( len( param ) == 1 and line.startswith( "SDC" ) ) )
+            # Specifying minimum support for an item
+            if(line.startswith("MIS")):
+                misMap[ int(param[0]) ] = float(param[1]) # mapping item id -> MIS
+            # Specifying support difference constraint
+            else:
+                sdc = float(param[0])
     return sdc
 
 # Sorts transactions in parameter sequence database by user supplied MIS values
 def sortData( rawSeqDB, misMap ):
     for rawSeq in rawSeqDB:
         for trans in rawSeq:
-            trans.sort(key=lambda x:misMap[x])
+            trans.sort(key=lambda x:(misMap[x], x))
             

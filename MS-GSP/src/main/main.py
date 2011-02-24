@@ -71,7 +71,7 @@ def initPass( L, F, ctx ):
         ctx.supportMap[key] = support # Cache item supports
     
     # Sort possible 1-sequences by MIS
-    L.sort( key = lambda seqObj : seqObj.getMis() )
+    L.sort( key = lambda seqObj : (seqObj.getMis(),seqObj.getFirstItemId()) )
     
     # Determine first item with support >= MIS(item) - this item will have the lowest satisfied MIS
     idxItemWithLowestSatisfiedMIS = len( L )
@@ -134,7 +134,7 @@ def MSCandidateGenSPM_conditionalJoinWhenFirstItemHasUniqueMinMis( seqObj1, seqO
         elif (seqObj1.length()>2) or ((seqObj1.length()==2 and seqObj1.size()==1) and (ctx.misMap[seqObj2.getLastItemId()]>ctx.misMap[seqObj1.getLastItemId()])):
             c2 = copy.deepcopy(seqObj1.getRawSeq())
             c2[-1].append( seqObj2.getLastItemId() )
-            c2[-1].sort( key = lambda itemId: ctx.misMap[ itemId ] ) # Maintain lexographic order by MIS value
+            c2[-1].sort( key = lambda itemId: ( ctx.misMap[ itemId ], itemId) ) # Maintain lexographic order by MIS value
             appendSeqObjAndCacheSupport( C, c2, seqObj1.getMis(), ctx.rawSeqDB )
 
 def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqObj2, C, ctx ):
@@ -156,7 +156,7 @@ def MSCandidateGenSPM_conditionalJoinWhenLastItemHasUniqueMinMis( seqObj1, seqOb
         elif (seqObj2.length()>2) or ((seqObj2.length()==1 and seqObj2.size()==2) and (ctx.misMap[seqObj2.getFirstItemId()]>ctx.misMap[seqObj1.getFirstItemId()])):
             c2 = copy.deepcopy(seqObj2.getRawSeq())
             c2[0].insert( 0, seqObj1.getFirstItemId() )
-            c2[0].sort( key = lambda itemId: ctx.misMap[ itemId ] ) # Maintain lexographic order by MIS value
+            c2[0].sort( key = lambda itemId: ( ctx.misMap[ itemId ], itemId) ) # Maintain lexographic order by MIS value
             appendSeqObjAndCacheSupport( C, c2, seqObj2.getMis(), ctx.rawSeqDB ) 
 
 # Extracts all k-sequences in C such that all k-1 subsequences are frequent based on FPrev (i.e. Fk-1)
@@ -245,8 +245,8 @@ def MSGSPMain(maxK = 10, dataPath = "../../../Data/data.txt", paramPath="../../.
 def appMain():    
     # Initialize logging
     initLogger()
-    dataPath = "../../../Data/data.txt"  # The path to the input data @TODO: Read from arguments!
-    paramPath = "../../../Data/para.txt" # The path to the MIS parameter data @TODO: Read from arguments!
+    dataPath = "../../../Data/data-1.txt"  # The path to the input data @TODO: Read from arguments!
+    paramPath = "../../../Data/para1-1.txt" # The path to the MIS parameter data @TODO: Read from arguments!
 
     FHist = MSGSPMain(6,dataPath,paramPath) # max k-value
     printFreqSeqObjs( FHist )

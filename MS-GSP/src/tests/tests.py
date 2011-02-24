@@ -54,14 +54,14 @@ class TestMSGSPOutput(unittest.TestCase):
         
          
     def setUp(self):
-        self.dataPath = "../../../Data/UnitTestData.txt"  # The path to the input data @TODO: Read from arguments!
-        self.paramPath = "../../../Data/UnitTestPara.txt" # The path to the MIS parameter data @TODO: Read from arguments!
-        self.maxUniqueItems=30
-        self.maxSeqLength=30
+        self.dataPath = "../../../Data/data-1.txt"  # The path to the input data @TODO: Read from arguments!
+        self.paramPath = "../../../Data/para1-2.txt" # The path to the MIS parameter data @TODO: Read from arguments!
+        self.maxUniqueItems=20
+        self.maxSeqLength=20
         self.maxK=3
         
-        self.generateInputs()
-        print("Input files generated...")
+        #self.generateInputs()
+        #print("Input files generated...")
         self.ctx = Context(self.dataPath,self.paramPath)
         print("Context created...")
         
@@ -201,7 +201,7 @@ class TestMSGSPOutput(unittest.TestCase):
                     if(item not in seq[-1]):
                         c=copy.deepcopy(seq)
                         c[-1].append(item)
-                        c[-1].sort(key=lambda x: self.ctx.misMap[x])
+                        c[-1].sort(key=lambda x: (self.ctx.misMap[x],x))
                         nextSeqs.append(c)
                     
                     c=copy.deepcopy(seq)
